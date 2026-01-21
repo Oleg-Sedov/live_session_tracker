@@ -151,6 +151,16 @@
       min-height: 100px;
       resize: vertical;
     }
+
+    /* === АДАПТАЦИЯ ТАБЛИЦ ДЛЯ МОБИЛЬНЫХ === */
+    .table-responsive {
+      overflow-x: auto;
+      width: 100%;
+      margin: 15px 0;
+    }
+    .table-responsive table {
+      min-width: 600px;
+    }
   </style>
 </head>
 <body>
@@ -181,7 +191,7 @@
   <div id="mainContent" style="display:none;">
     
     <!-- Управление игроками -->
-    <div class="players-section">
+    <div class="players-section" id="players-section">
       <h2>Игроки</h2>
       <div id="playerInputContainer">
         <input type="text" id="newPlayerName" placeholder="Имя игрока" />
@@ -233,6 +243,7 @@
         </table>
       </div>
     </div>
+    <div id="balanceWarning" class="error" style="display:none;"></div>
 
     <!-- Расчёт взаиморасчётов -->
     <button onclick="calculateSettlements()" id="calcBtn" disabled>Рассчитать взаиморасчёты</button>
@@ -253,18 +264,20 @@
       <span class="toggle-icon">+</span> Архив сессий
     </h2>
     <div id="archiveContent" class="collapsible-content collapsed">
-      <table id="sessionsTable">
-        <thead>
-          <tr>
-            <th>Название</th>
-            <th>Дата создания</th>
-            <th>Игроков</th>
-            <th>Операций</th>
-            <th>Действия</th>
-          </tr>
-        </thead>
-        <tbody id="sessionsList"></tbody>
-      </table>
+      <div class="table-responsive">
+        <table id="sessionsTable">
+          <thead>
+            <tr>
+              <th>Название</th>
+              <th>Дата создания</th>
+              <th>Игроков</th>
+              <th>Операций</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody id="sessionsList"></tbody>
+        </table>
+      </div>
       <p id="noSessionsNote" style="text-align:center; color:#777; display:none;">Нет сохранённых сессий</p>
     </div>
   </div>
@@ -519,6 +532,45 @@
     return { showResult, result };
   }
 
+  // === СТАТУС РАСЧЁТА ===
+  function getSettlementStatus() {
+    if (!currentSessionId) return { canCalculate: false, isAllExited: false, total: 0 };
+    const session = sessions[currentSessionId];
+    if (session.players.length < 2) return { canCalculate: false, isAllExited: false, total: 0 };
+
+    let allExited = true;
+    for (const player of session.players) {
+      const playerTransactions = session.transactions.filter(t => t.player === player);
+      if (playerTransactions.length === 0) {
+        allExited = false;
+        break;
+      }
+      const lastOp = playerTransactions[playerTransactions.length - 1];
+      if (lastOp.type !== 'cash_out') {
+        allExited = false;
+        break;
+      }
+    }
+
+    if (!allExited) {
+      return { canCalculate: false, isAllExited: false, total: 0 };
+    }
+
+    const summary = {};
+    session.players.forEach(p => summary[p] = { net: 0 });
+    session.transactions.forEach(t => {
+      summary[t.player].net += (t.type === 'buy_in' ? -t.amount : t.amount);
+    });
+    const total = Object.values(summary).reduce((sum, p) => sum + p.net, 0);
+    const isBalanced = Math.abs(total) <= 0.01;
+
+    return {
+      canCalculate: isBalanced,
+      isAllExited: true,
+      total: total
+    };
+  }
+
   // === СВОДКА ПО ИГРОКАМ ===
   function renderSummary() {
     if (!currentSessionId) return;
@@ -570,25 +622,29 @@
       }
     });
 
-    document.getElementById('calcBtn').disabled = list.length < 2;
+    // Обновляем статус расчёта
+    const settlementStatus = getSettlementStatus();
+    document.getElementById('calcBtn').disabled = !settlementStatus.canCalculate;
+
+    const balanceWarning = document.getElementById('balanceWarning');
+    if (settlementStatus.isAllExited && !settlementStatus.canCalculate) {
+      balanceWarning.textContent = `Баланс не сошёлся (${settlementStatus.total.toFixed(2)} ₽), проверьте кэш-аут`;
+      balanceWarning.style.display = 'block';
+    } else {
+      balanceWarning.style.display = 'none';
+    }
   }
 
   // === ВЗАИМОРАСЧЁТЫ ===
   function calculateSettlements() {
     if (!currentSessionId) return;
     const session = sessions[currentSessionId];
+
     const summary = {};
     session.players.forEach(p => summary[p] = { net: 0 });
     session.transactions.forEach(t => {
       summary[t.player].net += (t.type === 'buy_in' ? -t.amount : t.amount);
     });
-
-    const total = Object.values(summary).reduce((sum, p) => sum + p.net, 0);
-    const isBalanced = Math.abs(total) <= 0.01;
-
-    if (!isBalanced) {
-      alert(`Внимание: общий баланс ≠ 0 (${total.toFixed(2)}).`);
-    }
 
     const creditors = [];
     const debtors = [];
@@ -610,25 +666,25 @@
       if (creditor.amount < 0.01) c++;
     }
 
-    // Сохраняем результаты в сессию
-    session.settlements = { transfers, isBalanced };
+    session.settlements = { transfers, isBalanced: true };
     saveToStorage();
 
     const box = document.getElementById('resultBox');
     if (transfers.length === 0) {
-      box.innerHTML = '<p>Все в расчёте!</p>';
+      box.innerHTML = '';
+      box.style.display = 'none';
     } else {
-      box.innerHTML = '<p><strong>Минимальные переводы:</strong></p><ul>' +
+      box.innerHTML = '<ul>' +
         transfers.map(t => `<li><strong>${t.from}</strong> → <strong>${t.to}</strong>: ${t.amount} ₽</li>`).join('') +
         '</ul>';
+      box.style.display = 'block';
     }
-    box.style.display = 'block';
+    
     document.getElementById('exportBtn').disabled = false;
     window.transfersForExport = transfers;
 
     const isCompleted = session.status === 'completed';
-    document.getElementById('finishBtn').style.display = 
-      (!isCompleted && isBalanced) ? 'inline-block' : 'none';
+    document.getElementById('finishBtn').style.display = !isCompleted ? 'inline-block' : 'none';
   }
 
   // === ЭКСПОРТ ===
@@ -735,7 +791,6 @@
     document.getElementById('noSessionMessage').style.display = hasSession ? 'none' : 'block';
     document.getElementById('resetBtn').disabled = !hasSession || isCompleted;
 
-    // Управление видимостью интерактивных элементов
     const interactiveIds = [
       'players-section',
       'addPlayersBtn',
@@ -751,7 +806,6 @@
       if (el) el.style.display = (hasSession && !isCompleted) ? '' : 'none';
     });
 
-    // Кнопка экспорта всегда доступна при наличии сессии
     document.getElementById('exportBtn').disabled = !hasSession;
 
     if (hasSession) {
@@ -760,7 +814,6 @@
         renderTransactions();
       }
       renderSummary();
-      // Показываем сохранённые взаимозачёты, если есть
       if (isCompleted && sessions[currentSessionId].settlements) {
         showSavedSettlements(sessions[currentSessionId].settlements);
       } else {
@@ -779,13 +832,14 @@
   function showSavedSettlements(saved) {
     const box = document.getElementById('resultBox');
     if (!saved.transfers || saved.transfers.length === 0) {
-      box.innerHTML = '<p>Все в расчёте!</p>';
+      box.innerHTML = '';
+      box.style.display = 'none';
     } else {
-      box.innerHTML = '<p><strong>Минимальные переводы:</strong></p><ul>' +
+      box.innerHTML = '<ul>' +
         saved.transfers.map(t => `<li><strong>${t.from}</strong> → <strong>${t.to}</strong>: ${t.amount} ₽</li>`).join('') +
         '</ul>';
+      box.style.display = 'block';
     }
-    box.style.display = 'block';
     document.getElementById('exportBtn').disabled = false;
     window.transfersForExport = saved.transfers;
   }

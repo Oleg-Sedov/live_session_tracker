@@ -102,20 +102,6 @@
       padding: 20px;
       font-style: italic;
     }
-    .section-title {
-      margin-top: 30px;
-      border-top: 1px solid #eee;
-      padding-top: 20px;
-    }
-    .action-link {
-      color: #1976d2;
-      text-decoration: underline;
-      cursor: pointer;
-      margin: 0 5px;
-    }
-    .action-link:hover {
-      color: #0d47a1;
-    }
 
     /* === СТИЛИ ДЛЯ СВОРАЧИВАЕМЫХ БЛОКОВ === */
     .collapsible-section {
@@ -177,9 +163,18 @@
     <input type="text" id="newSessionName" placeholder="Название сессии" value="" />
     <button onclick="createNewSession()">+ Новая сессия</button>
     <button onclick="showResetDialog()" class="danger-btn" id="resetBtn" disabled>Сбросить сессию</button>
-    <a href="https://oleg-sedov.github.io/settlements/" target="_blank">
+    <a href="/settlements.html" target="_blank">
       <button class="online-btn">Рассчитать результаты онлайн-сессии</button>
     </a>
+  </div>
+
+  <!-- Диалог сброса (перемещён сюда) -->
+  <div id="resetDialog" style="display:none; margin:15px 0; padding:15px; background:#fff3cd; border:1px solid #ffeaa7; border-radius:6px;">
+    <p><strong>Вы уверены, что хотите сбросить текущую сессию?</strong></p>
+    <p>Введите слово <code>сбросить</code> для подтверждения:</p>
+    <input type="text" id="resetConfirmInput" class="confirm-input" placeholder="сбросить" />
+    <button onclick="confirmReset()" class="danger-btn">Подтвердить</button>
+    <button onclick="hideResetDialog()">Отмена</button>
   </div>
 
   <!-- Основной контент (только если есть сессия) -->
@@ -212,9 +207,9 @@
     <!-- Сворачиваемый блок транзакций -->
     <div class="collapsible-section">
       <h2 class="collapsible-header" onclick="toggleSection('transactions')">
-        <span class="toggle-icon">−</span> Транзакции
+        <span class="toggle-icon">+</span> Транзакции
       </h2>
-      <div id="transactionsContent" class="collapsible-content">
+      <div id="transactionsContent" class="collapsible-content collapsed">
         <table id="transactionsTable">
           <thead>
             <tr><th>Игрок</th><th>Тип</th><th>Сумма</th><th>Действие</th></tr>
@@ -224,14 +219,20 @@
       </div>
     </div>
 
-    <!-- Сводка по игрокам -->
-    <h2>Итоги по игрокам</h2>
-    <table id="summaryTable">
-      <thead>
-        <tr><th>Игрок</th><th>Σ Бай-ин</th><th>Σ Кэш-аут</th><th>Результат</th><th>Действие</th></tr>
-      </thead>
-      <tbody id="summaryList"></tbody>
-    </table>
+    <!-- Сворачиваемый блок итогов -->
+    <div class="collapsible-section">
+      <h2 class="collapsible-header" onclick="toggleSection('summary')">
+        <span class="toggle-icon">+</span> Итоги по игрокам
+      </h2>
+      <div id="summaryContent" class="collapsible-content collapsed">
+        <table id="summaryTable">
+          <thead>
+            <tr><th>Игрок</th><th>Σ Бай-ин</th><th>Σ Кэш-аут</th><th>Результат</th><th>Действие</th></tr>
+          </thead>
+          <tbody id="summaryList"></tbody>
+        </table>
+      </div>
+    </div>
 
     <!-- Расчёт взаиморасчётов -->
     <button onclick="calculateSettlements()" id="calcBtn" disabled>Рассчитать взаиморасчёты</button>
@@ -246,31 +247,26 @@
   <div id="error" class="error"></div>
   <div id="resultBox" class="result-box"></div>
 
-  <!-- Диалог сброса -->
-  <div id="resetDialog" style="display:none; margin-top:20px; padding:15px; background:#fff3cd; border:1px solid #ffeaa7; border-radius:6px;">
-    <p><strong>Вы уверены, что хотите сбросить текущую сессию?</strong></p>
-    <p>Введите слово <code>сбросить</code> для подтверждения:</p>
-    <input type="text" id="resetConfirmInput" class="confirm-input" placeholder="сбросить" />
-    <button onclick="confirmReset()" class="danger-btn">Подтвердить</button>
-    <button onclick="hideResetDialog()">Отмена</button>
-  </div>
-
-  <!-- ТАБЛИЦА СЕССИЙ ВНИЗУ -->
-  <div class="section-title">
-    <h2>Архив сессий</h2>
-    <table id="sessionsTable">
-      <thead>
-        <tr>
-          <th>Название</th>
-          <th>Дата создания</th>
-          <th>Игроков</th>
-          <th>Операций</th>
-          <th>Действия</th>
-        </tr>
-      </thead>
-      <tbody id="sessionsList"></tbody>
-    </table>
-    <p id="noSessionsNote" style="text-align:center; color:#777; display:none;">Нет сохранённых сессий</p>
+  <!-- Сворачиваемый блок архива -->
+  <div class="collapsible-section">
+    <h2 class="collapsible-header" onclick="toggleSection('archive')">
+      <span class="toggle-icon">+</span> Архив сессий
+    </h2>
+    <div id="archiveContent" class="collapsible-content collapsed">
+      <table id="sessionsTable">
+        <thead>
+          <tr>
+            <th>Название</th>
+            <th>Дата создания</th>
+            <th>Игроков</th>
+            <th>Операций</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody id="sessionsList"></tbody>
+      </table>
+      <p id="noSessionsNote" style="text-align:center; color:#777; display:none;">Нет сохранённых сессий</p>
+    </div>
   </div>
 </div>
 
@@ -333,7 +329,8 @@
       name,
       players: [],
       transactions: [],
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      status: 'active'
     };
     currentSessionId = id;
     saveToStorage();
@@ -344,23 +341,17 @@
   }
 
   function switchSession(id) {
-    if (sessions[id]) {
-      currentSessionId = id;
-      saveToStorage();
-      updateUI();
-    }
+    if (!sessions[id]) return;
+    currentSessionId = id;
+    saveToStorage();
+    updateUI();
   }
 
   function deleteSession(id) {
-    if (Object.keys(sessions).length <= 1) {
-      alert('Нельзя удалить последнюю сессию');
-      return;
-    }
     if (confirm(`Удалить сессию "${sessions[id].name}"?`)) {
       delete sessions[id];
       if (currentSessionId === id) {
-        const keys = Object.keys(sessions);
-        currentSessionId = keys.length > 0 ? keys[0] : null;
+        currentSessionId = null;
       }
       saveToStorage();
       updateUI();
@@ -510,6 +501,24 @@
     });
   }
 
+  // === ЛОГИКА РЕЗУЛЬТАТА ИГРОКА ===
+  function getPlayerResultStatus(playerName, transactions) {
+    const playerTransactions = transactions.filter(t => t.player === playerName);
+    if (playerTransactions.length === 0) {
+      return { showResult: false, result: 0 };
+    }
+    const lastOp = playerTransactions[playerTransactions.length - 1];
+    const totalBuyIn = playerTransactions
+      .filter(t => t.type === 'buy_in')
+      .reduce((sum, t) => sum + t.amount, 0);
+    const totalCashOut = playerTransactions
+      .filter(t => t.type === 'cash_out')
+      .reduce((sum, t) => sum + t.amount, 0);
+    const result = totalCashOut - totalBuyIn;
+    const showResult = (lastOp.type === 'cash_out');
+    return { showResult, result };
+  }
+
   // === СВОДКА ПО ИГРОКАМ ===
   function renderSummary() {
     if (!currentSessionId) return;
@@ -532,16 +541,23 @@
     tbody.innerHTML = '';
     list.sort((a, b) => b.result - a.result);
     list.forEach(p => {
+      const status = getPlayerResultStatus(p.name, session.transactions);
       const row = tbody.insertRow();
       row.insertCell(0).textContent = p.name;
       row.insertCell(1).textContent = parseFloat(p.buyIn.toFixed(2));
       row.insertCell(2).textContent = parseFloat(p.cashOut.toFixed(2));
+      
       const resCell = row.insertCell(3);
-      const res = parseFloat(p.result.toFixed(2));
-      resCell.textContent = res;
-      if (res > 0.01) resCell.className = 'positive';
-      else if (res < -0.01) resCell.className = 'negative';
-      else resCell.className = 'zero';
+      if (status.showResult) {
+        const res = status.result;
+        resCell.textContent = parseFloat(res.toFixed(2));
+        if (res > 0.01) resCell.className = 'positive';
+        else if (res < -0.01) resCell.className = 'negative';
+        else resCell.className = 'zero';
+      } else {
+        resCell.textContent = '—';
+        resCell.className = '';
+      }
 
       const actionCell = row.insertCell(4);
       if (summary[p.name].buyIn === 0 && summary[p.name].cashOut === 0) {
@@ -594,6 +610,10 @@
       if (creditor.amount < 0.01) c++;
     }
 
+    // Сохраняем результаты в сессию
+    session.settlements = { transfers, isBalanced };
+    saveToStorage();
+
     const box = document.getElementById('resultBox');
     if (transfers.length === 0) {
       box.innerHTML = '<p>Все в расчёте!</p>';
@@ -606,7 +626,9 @@
     document.getElementById('exportBtn').disabled = false;
     window.transfersForExport = transfers;
 
-    document.getElementById('finishBtn').style.display = isBalanced ? 'inline-block' : 'none';
+    const isCompleted = session.status === 'completed';
+    document.getElementById('finishBtn').style.display = 
+      (!isCompleted && isBalanced) ? 'inline-block' : 'none';
   }
 
   // === ЭКСПОРТ ===
@@ -636,7 +658,7 @@
     ]);
     XLSX.utils.book_append_sheet(wb, ws2, 'Итоги');
 
-    const transfers = window.transfersForExport || [];
+    const transfers = window.transfersForExport || (session.settlements?.transfers || []);
     const ws3 = XLSX.utils.aoa_to_sheet([
       ['От кого', 'Кому', 'Сумма'],
       ...transfers.map(t => [t.from, t.to, t.amount])
@@ -649,7 +671,9 @@
 
   // === ЗАВЕРШЕНИЕ СЕССИИ ===
   function finishSession() {
-    if (!confirm('Завершить сессию? Все данные останутся в архиве.')) return;
+    if (!confirm('Завершить сессию? После этого редактирование будет невозможно.')) return;
+    const session = sessions[currentSessionId];
+    session.status = 'completed';
     currentSessionId = null;
     saveToStorage();
     updateUI();
@@ -676,6 +700,7 @@
       const session = sessions[currentSessionId];
       session.players = [];
       session.transactions = [];
+      delete session.settlements;
       saveToStorage();
       renderTransactions();
       renderSummary();
@@ -704,24 +729,68 @@
   // === ОБНОВЛЕНИЕ ИНТЕРФЕЙСА ===
   function updateUI() {
     const hasSession = !!currentSessionId;
+    const isCompleted = hasSession && sessions[currentSessionId].status === 'completed';
+
     document.getElementById('mainContent').style.display = hasSession ? 'block' : 'none';
     document.getElementById('noSessionMessage').style.display = hasSession ? 'none' : 'block';
-    document.getElementById('resetBtn').disabled = !hasSession;
+    document.getElementById('resetBtn').disabled = !hasSession || isCompleted;
+
+    // Управление видимостью интерактивных элементов
+    const interactiveIds = [
+      'players-section',
+      'addPlayersBtn',
+      'toggleInputModeBtn',
+      'playerSelect',
+      'operationType',
+      'amount',
+      'calcBtn',
+      'finishBtn'
+    ];
+    interactiveIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = (hasSession && !isCompleted) ? '' : 'none';
+    });
+
+    // Кнопка экспорта всегда доступна при наличии сессии
+    document.getElementById('exportBtn').disabled = !hasSession;
+
     if (hasSession) {
-      updatePlayerSelect();
-      renderTransactions();
+      if (!isCompleted) {
+        updatePlayerSelect();
+        renderTransactions();
+      }
       renderSummary();
+      // Показываем сохранённые взаимозачёты, если есть
+      if (isCompleted && sessions[currentSessionId].settlements) {
+        showSavedSettlements(sessions[currentSessionId].settlements);
+      } else {
+        document.getElementById('resultBox').style.display = 'none';
+      }
     } else {
       document.getElementById('resultBox').style.display = 'none';
       document.getElementById('exportBtn').disabled = true;
-      document.getElementById('finishBtn').style.display = 'none';
-      // Сбрасываем режим ввода
       isListMode = false;
       document.getElementById('toggleInputModeBtn').textContent = 'Добавить списком';
     }
+
     renderSessionsTable();
   }
 
+  function showSavedSettlements(saved) {
+    const box = document.getElementById('resultBox');
+    if (!saved.transfers || saved.transfers.length === 0) {
+      box.innerHTML = '<p>Все в расчёте!</p>';
+    } else {
+      box.innerHTML = '<p><strong>Минимальные переводы:</strong></p><ul>' +
+        saved.transfers.map(t => `<li><strong>${t.from}</strong> → <strong>${t.to}</strong>: ${t.amount} ₽</li>`).join('') +
+        '</ul>';
+    }
+    box.style.display = 'block';
+    document.getElementById('exportBtn').disabled = false;
+    window.transfersForExport = saved.transfers;
+  }
+
+  // === РЕНДЕР АРХИВА ===
   function renderSessionsTable() {
     const tbody = document.getElementById('sessionsList');
     const note = document.getElementById('noSessionsNote');
@@ -740,9 +809,16 @@
       row.insertCell(1).textContent = new Date(s.createdAt).toLocaleString('ru-RU');
       row.insertCell(2).textContent = s.players.length;
       row.insertCell(3).textContent = s.transactions.length;
+      
       const actions = row.insertCell(4);
       if (id === currentSessionId) {
         actions.innerHTML = '<em>Текущая</em>';
+      } else if (s.status === 'completed') {
+        const view = document.createElement('span');
+        view.className = 'action-link';
+        view.textContent = 'Просмотреть';
+        view.onclick = () => switchSession(id);
+        actions.appendChild(view);
       } else {
         const open = document.createElement('span');
         open.className = 'action-link';

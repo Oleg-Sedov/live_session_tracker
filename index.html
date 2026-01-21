@@ -161,6 +161,60 @@
     .table-responsive table {
       min-width: 600px;
     }
+
+    /* === КНОПКИ В АРХИВЕ === */
+    .archive-btn {
+      padding: 4px 8px;
+      margin: 2px;
+      font-size: 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      border: none;
+      color: white;
+    }
+    .archive-btn.view { background-color: #2196F3; }
+    .archive-btn.open { background-color: #4CAF50; }
+    .archive-btn.delete { background-color: #f44336; }
+    .archive-btn:hover { opacity: 0.9; }
+
+    /* === ПОДСКАЗКА ДЛЯ НЕАКТИВНОЙ КНОПКИ === */
+    .tooltip-container {
+      position: relative;
+      display: inline-block;
+    }
+    .tooltip-text {
+      visibility: hidden;
+      width: 280px;
+      background-color: #555;
+      color: #fff;
+      text-align: center;
+      border-radius: 6px;
+      padding: 8px;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      left: 50%;
+      margin-left: -140px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .tooltip-container:hover .tooltip-text,
+    .tooltip-container:focus-within .tooltip-text {
+      visibility: visible;
+      opacity: 1;
+    }
+    .tooltip-text::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      margin-left: -5px;
+      border-width: 5px;
+      border-style: solid;
+      border-color: #555 transparent transparent transparent;
+    }
   </style>
 </head>
 <body>
@@ -246,9 +300,18 @@
     <div id="balanceWarning" class="error" style="display:none;"></div>
 
     <!-- Расчёт взаиморасчётов -->
-    <button onclick="calculateSettlements()" id="calcBtn" disabled>Рассчитать взаиморасчёты</button>
+    <div class="tooltip-container">
+      <button 
+        onclick="calculateSettlements()" 
+        id="calcBtn" 
+        disabled 
+        tabindex="0"
+      >Рассчитать взаиморасчёты</button>
+      <div class="tooltip-text">Расчёт невозможен: не все закончили игру или баланс не сходится</div>
+    </div>
     <button onclick="exportToExcel()" id="exportBtn" disabled>Экспорт в Excel</button>
     <button onclick="finishSession()" id="finishBtn" style="display:none;" class="danger-btn">Завершить сессию</button>
+    <button onclick="closeCompletedSession()" id="closeCompletedBtn" style="display:none;">Закрыть</button>
   </div>
 
   <div id="noSessionMessage" class="no-session">
@@ -492,6 +555,7 @@
 
   function renderTransactions() {
     if (!currentSessionId) return;
+    const isCompleted = sessions[currentSessionId].status === 'completed';
     const tbody = document.getElementById('transactionsList');
     tbody.innerHTML = '';
     const trans = sessions[currentSessionId].transactions;
@@ -501,16 +565,20 @@
       row.insertCell(1).textContent = t.type === 'buy_in' ? 'Бай-ин' : 'Кэш-аут';
       row.insertCell(2).textContent = parseFloat(t.amount.toFixed(2));
       const cell = row.insertCell(3);
-      const btn = document.createElement('button');
-      btn.textContent = 'Удалить';
-      btn.onclick = () => {
-        trans.splice(i, 1);
-        saveToStorage();
-        renderTransactions();
-        renderSummary();
-        updatePlayerSelect();
-      };
-      cell.appendChild(btn);
+      if (!isCompleted) {
+        const btn = document.createElement('button');
+        btn.textContent = 'Удалить';
+        btn.onclick = () => {
+          trans.splice(i, 1);
+          saveToStorage();
+          renderTransactions();
+          renderSummary();
+          updatePlayerSelect();
+        };
+        cell.appendChild(btn);
+      } else {
+        cell.textContent = '—';
+      }
     });
   }
 
@@ -575,6 +643,7 @@
   function renderSummary() {
     if (!currentSessionId) return;
     const session = sessions[currentSessionId];
+    const isCompleted = session.status === 'completed';
     const summary = {};
     session.players.forEach(p => summary[p] = { buyIn: 0, cashOut: 0 });
     session.transactions.forEach(t => {
@@ -612,7 +681,7 @@
       }
 
       const actionCell = row.insertCell(4);
-      if (summary[p.name].buyIn === 0 && summary[p.name].cashOut === 0) {
+      if (!isCompleted && summary[p.name].buyIn === 0 && summary[p.name].cashOut === 0) {
         const delBtn = document.createElement('button');
         delBtn.textContent = 'Удалить';
         delBtn.onclick = () => removePlayer(p.name);
@@ -735,6 +804,13 @@
     updateUI();
   }
 
+  // === ЗАКРЫТЬ ПРОСМОТР ЗАВЕРШЁННОЙ СЕССИИ ===
+  function closeCompletedSession() {
+    currentSessionId = null;
+    saveToStorage();
+    updateUI();
+  }
+
   // === СБРОС СЕССИИ ===
   function showResetDialog() {
     if (!currentSessionId) return;
@@ -806,6 +882,10 @@
       if (el) el.style.display = (hasSession && !isCompleted) ? '' : 'none';
     });
 
+    // Кнопка закрыть для завершённой сессии
+    document.getElementById('closeCompletedBtn').style.display = 
+      (hasSession && isCompleted) ? 'inline-block' : 'none';
+
     document.getElementById('exportBtn').disabled = !hasSession;
 
     if (hasSession) {
@@ -868,23 +948,29 @@
       if (id === currentSessionId) {
         actions.innerHTML = '<em>Текущая</em>';
       } else if (s.status === 'completed') {
-        const view = document.createElement('span');
-        view.className = 'action-link';
-        view.textContent = 'Просмотреть';
-        view.onclick = () => switchSession(id);
-        actions.appendChild(view);
-      } else {
-        const open = document.createElement('span');
-        open.className = 'action-link';
-        open.textContent = 'Открыть';
-        open.onclick = () => switchSession(id);
-        actions.appendChild(open);
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'archive-btn view';
+        viewBtn.textContent = 'Просмотреть';
+        viewBtn.onclick = () => switchSession(id);
+        actions.appendChild(viewBtn);
 
-        const del = document.createElement('span');
-        del.className = 'action-link';
-        del.textContent = 'Удалить';
-        del.onclick = () => deleteSession(id);
-        actions.appendChild(del);
+        const delBtn = document.createElement('button');
+        delBtn.className = 'archive-btn delete';
+        delBtn.textContent = 'Удалить';
+        delBtn.onclick = () => deleteSession(id);
+        actions.appendChild(delBtn);
+      } else {
+        const openBtn = document.createElement('button');
+        openBtn.className = 'archive-btn open';
+        openBtn.textContent = 'Открыть';
+        openBtn.onclick = () => switchSession(id);
+        actions.appendChild(openBtn);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'archive-btn delete';
+        delBtn.textContent = 'Удалить';
+        delBtn.onclick = () => deleteSession(id);
+        actions.appendChild(delBtn);
       }
     });
   }

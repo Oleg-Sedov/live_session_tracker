@@ -639,6 +639,21 @@
     };
   }
 
+  // === ПРОВЕРКА ВОЗМОЖНОСТИ ЗАВЕРШЕНИЯ ===
+  function canFinishSession() {
+    if (!currentSessionId) return false;
+    const session = sessions[currentSessionId];
+    
+    // Условие 1: нет транзакций
+    if (session.transactions.length === 0) {
+      return true;
+    }
+
+    // Условие 2: все вышли и баланс = 0
+    const settlementStatus = getSettlementStatus();
+    return settlementStatus.canCalculate;
+  }
+
   // === СВОДКА ПО ИГРОКАМ ===
   function renderSummary() {
     if (!currentSessionId) return;
@@ -702,6 +717,10 @@
     } else {
       balanceWarning.style.display = 'none';
     }
+
+    // Обновляем кнопку "Завершить сессию"
+    document.getElementById('finishBtn').style.display = 
+      (!isCompleted && canFinishSession()) ? 'inline-block' : 'none';
   }
 
   // === ВЗАИМОРАСЧЁТЫ ===
@@ -752,8 +771,9 @@
     document.getElementById('exportBtn').disabled = false;
     window.transfersForExport = transfers;
 
-    const isCompleted = session.status === 'completed';
-    document.getElementById('finishBtn').style.display = !isCompleted ? 'inline-block' : 'none';
+    // Обновляем кнопку завершения (на случай, если расчёт изменил состояние)
+    document.getElementById('finishBtn').style.display = 
+      (canFinishSession()) ? 'inline-block' : 'none';
   }
 
   // === ЭКСПОРТ ===

@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Покер — Учёт сессий</title>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 960px;
+      margin: 20px auto;
+      padding: 0 15px;
+      background-color: #f5f5f5;
+    }
+    h1, h2 {
+      text-align: center;
+      color: #2c3e50;
+    }
+    .container {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 15px 0;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 10px;
+      text-align: center;
+    }
+    th {
+      background-color: #f0f0f0;
+    }
+    input[type="text"], input[type="number"], select, textarea {
+      padding: 6px;
+      margin: 4px;
+      width: 120px;
+    }
+    button {
+      padding: 8px 12px;
+      margin: 5px 2px;
+      cursor: pointer;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    button:hover { background-color: #45a049; }
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    .error {
+      color: #d32f2f;
+      background: #ffebee;
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+      display: none;
+    }
+    .result-box {
+      margin-top: 20px;
+      padding: 15px;
+      background: #e8f5e9;
+      border-left: 4px solid #2e7d32;
+      border-radius: 4px;
+      display: none;
+    }
+    .positive { color: green; font-weight: bold; }
+    .negative { color: red; font-weight: bold; }
+    .zero { color: #555; }
+    .session-controls {
+      text-align: center;
+      margin: 15px 0;
+    }
+    .danger-btn {
+      background-color: #f44336;
+    }
+    .danger-btn:hover {
+      background-color: #d32f2f;
+    }
+    .online-btn {
+      background-color: #2196F3;
+    }
+    .online-btn:hover {
+      background-color: #0b7dda;
+    }
+    .confirm-input {
+      padding: 6px;
+      margin: 5px;
+      width: 120px;
+    }
+    .no-session {
+      text-align: center;
+      color: #777;
+      padding: 20px;
+      font-style: italic;
+    }
+    .section-title {
+      margin-top: 30px;
+      border-top: 1px solid #eee;
+      padding-top: 20px;
+    }
+    .action-link {
+      color: #1976d2;
+      text-decoration: underline;
+      cursor: pointer;
+      margin: 0 5px;
+    }
+    .action-link:hover {
+      color: #0d47a1;
+    }
+
+    /* === СТИЛИ ДЛЯ СВОРАЧИВАЕМЫХ БЛОКОВ === */
+    .collapsible-section {
+      margin: 20px 0;
+    }
+    .collapsible-header {
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+      background: #f9f9f9;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #eee;
+    }
+    .toggle-icon {
+      font-size: 18px;
+      transition: transform 0.2s;
+    }
+    .collapsible-content {
+      overflow: hidden;
+      max-height: 1000px;
+      transition: max-height 0.3s ease, opacity 0.3s ease;
+      opacity: 1;
+      margin-top: 10px;
+    }
+    .collapsible-content.collapsed {
+      max-height: 0;
+      opacity: 0;
+      margin-top: 0;
+    }
+
+    /* === СТИЛИ ДЛЯ ВВОДА ИГРОКОВ === */
+    #playerInputContainer {
+      margin: 8px 0;
+    }
+    #playerInputContainer input,
+    #playerInputContainer textarea {
+      width: 100%;
+      padding: 8px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    #playerInputContainer textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Покер — Учёт сессий</h1>
+
+  <!-- Управление сессиями -->
+  <div class="session-controls">
+    <input type="text" id="newSessionName" placeholder="Название сессии" value="" />
+    <button onclick="createNewSession()">+ Новая сессия</button>
+    <button onclick="showResetDialog()" class="danger-btn" id="resetBtn" disabled>Сбросить сессию</button>
+    <a href="/settlements.html" target="_blank">
+      <button class="online-btn">Рассчитать результаты онлайн-сессии</button>
+    </a>
+  </div>
+
+  <!-- Основной контент (только если есть сессия) -->
+  <div id="mainContent" style="display:none;">
+    
+    <!-- Управление игроками -->
+    <div class="players-section">
+      <h2>Игроки</h2>
+      <div id="playerInputContainer">
+        <input type="text" id="newPlayerName" placeholder="Имя игрока" />
+      </div>
+      <button id="toggleInputModeBtn" onclick="togglePlayerInputMode()">Добавить списком</button>
+      <button id="addPlayersBtn" onclick="addPlayersFromCurrentInput()">Добавить</button>
+    </div>
+
+    <!-- Добавление операции -->
+    <h2>Добавить операцию</h2>
+    <div>
+      <select id="playerSelect" disabled>
+        <option value="">Выберите игрока</option>
+      </select>
+      <select id="operationType">
+        <option value="buy_in">Бай-ин</option>
+        <option value="cash_out">Кэш-аут</option>
+      </select>
+      <input type="number" id="amount" placeholder="Сумма" step="any" />
+      <button onclick="addTransaction()">Добавить</button>
+    </div>
+
+    <!-- Сворачиваемый блок транзакций -->
+    <div class="collapsible-section">
+      <h2 class="collapsible-header" onclick="toggleSection('transactions')">
+        <span class="toggle-icon">−</span> Транзакции
+      </h2>
+      <div id="transactionsContent" class="collapsible-content">
+        <table id="transactionsTable">
+          <thead>
+            <tr><th>Игрок</th><th>Тип</th><th>Сумма</th><th>Действие</th></tr>
+          </thead>
+          <tbody id="transactionsList"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Сводка по игрокам -->
+    <h2>Итоги по игрокам</h2>
+    <table id="summaryTable">
+      <thead>
+        <tr><th>Игрок</th><th>Σ Бай-ин</th><th>Σ Кэш-аут</th><th>Результат</th><th>Действие</th></tr>
+      </thead>
+      <tbody id="summaryList"></tbody>
+    </table>
+
+    <!-- Расчёт взаиморасчётов -->
+    <button onclick="calculateSettlements()" id="calcBtn" disabled>Рассчитать взаиморасчёты</button>
+    <button onclick="exportToExcel()" id="exportBtn" disabled>Экспорт в Excel</button>
+    <button onclick="finishSession()" id="finishBtn" style="display:none;" class="danger-btn">Завершить сессию</button>
+  </div>
+
+  <div id="noSessionMessage" class="no-session">
+    Создайте новую сессию, чтобы начать учёт.
+  </div>
+
+  <div id="error" class="error"></div>
+  <div id="resultBox" class="result-box"></div>
+
+  <!-- Диалог сброса -->
+  <div id="resetDialog" style="display:none; margin-top:20px; padding:15px; background:#fff3cd; border:1px solid #ffeaa7; border-radius:6px;">
+    <p><strong>Вы уверены, что хотите сбросить текущую сессию?</strong></p>
+    <p>Введите слово <code>сбросить</code> для подтверждения:</p>
+    <input type="text" id="resetConfirmInput" class="confirm-input" placeholder="сбросить" />
+    <button onclick="confirmReset()" class="danger-btn">Подтвердить</button>
+    <button onclick="hideResetDialog()">Отмена</button>
+  </div>
+
+  <!-- ТАБЛИЦА СЕССИЙ ВНИЗУ -->
+  <div class="section-title">
+    <h2>Архив сессий</h2>
+    <table id="sessionsTable">
+      <thead>
+        <tr>
+          <th>Название</th>
+          <th>Дата создания</th>
+          <th>Игроков</th>
+          <th>Операций</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody id="sessionsList"></tbody>
+    </table>
+    <p id="noSessionsNote" style="text-align:center; color:#777; display:none;">Нет сохранённых сессий</p>
+  </div>
+</div>
+
+<script>
+  // === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ===
+  let currentSessionId = null;
+  let sessions = {};
+  let isListMode = false;
+
+  // Проверка доступности localStorage
+  function canUseLocalStorage() {
+    try {
+      localStorage.setItem('_test', '1');
+      localStorage.removeItem('_test');
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function saveToStorage() {
+    if (!canUseLocalStorage()) return;
+    try {
+      localStorage.setItem('pokerSessions', JSON.stringify(sessions));
+      localStorage.setItem('currentSessionId', currentSessionId || '');
+    } catch (e) {
+      console.warn('Не удалось сохранить данные:', e);
+    }
+  }
+
+  function loadFromStorage() {
+    if (!canUseLocalStorage()) {
+      sessions = {};
+      currentSessionId = null;
+      return;
+    }
+    try {
+      const s = localStorage.getItem('pokerSessions');
+      const id = localStorage.getItem('currentSessionId');
+      sessions = s ? JSON.parse(s) : {};
+      currentSessionId = sessions[id] ? id : null;
+    } catch (e) {
+      sessions = {};
+      currentSessionId = null;
+    }
+  }
+
+  // === УПРАВЛЕНИЕ СЕССИЯМИ ===
+  function createNewSession() {
+    const nameInput = document.getElementById('newSessionName');
+    let name = nameInput.value.trim();
+    if (!name) {
+      const now = new Date();
+      name = `Сессия от ${now.toLocaleDateString('ru-RU')}`;
+    }
+
+    const id = 'sess_' + Date.now();
+    sessions[id] = {
+      id,
+      name,
+      players: [],
+      transactions: [],
+      createdAt: new Date().toISOString()
+    };
+    currentSessionId = id;
+    saveToStorage();
+    updateUI();
+
+    const nextDate = new Date();
+    nameInput.value = `Сессия от ${nextDate.toLocaleDateString('ru-RU')}`;
+  }
+
+  function switchSession(id) {
+    if (sessions[id]) {
+      currentSessionId = id;
+      saveToStorage();
+      updateUI();
+    }
+  }
+
+  function deleteSession(id) {
+    if (Object.keys(sessions).length <= 1) {
+      alert('Нельзя удалить последнюю сессию');
+      return;
+    }
+    if (confirm(`Удалить сессию "${sessions[id].name}"?`)) {
+      delete sessions[id];
+      if (currentSessionId === id) {
+        const keys = Object.keys(sessions);
+        currentSessionId = keys.length > 0 ? keys[0] : null;
+      }
+      saveToStorage();
+      updateUI();
+    }
+  }
+
+  // === РЕЖИМ ВВОДА ИГРОКОВ ===
+  function togglePlayerInputMode() {
+    const container = document.getElementById('playerInputContainer');
+    const btn = document.getElementById('toggleInputModeBtn');
+    
+    if (!isListMode) {
+      const currentValue = document.getElementById('newPlayerName')?.value || '';
+      container.innerHTML = '<textarea id="newPlayerList" placeholder="Введите имена игроков, по одному на строку"></textarea>';
+      if (currentValue) {
+        document.getElementById('newPlayerList').value = currentValue;
+      }
+      btn.textContent = 'Добавить по одному';
+      isListMode = true;
+    } else {
+      const currentText = document.getElementById('newPlayerList')?.value || '';
+      const firstLine = currentText.split('\n')[0]?.trim() || '';
+      container.innerHTML = '<input type="text" id="newPlayerName" placeholder="Имя игрока" />';
+      if (firstLine) {
+        document.getElementById('newPlayerName').value = firstLine;
+      }
+      btn.textContent = 'Добавить списком';
+      isListMode = false;
+    }
+  }
+
+  function addPlayersFromCurrentInput() {
+    if (!currentSessionId) return;
+    
+    const session = sessions[currentSessionId];
+    let newPlayers = [];
+    
+    if (isListMode) {
+      const text = document.getElementById('newPlayerList')?.value || '';
+      newPlayers = text
+        .split('\n')
+        .map(line => line.trim())
+        .filter(name => name && !session.players.includes(name));
+    } else {
+      const name = document.getElementById('newPlayerName')?.value.trim();
+      if (name && !session.players.includes(name)) {
+        newPlayers = [name];
+      }
+    }
+
+    if (newPlayers.length === 0) {
+      alert(isListMode ? 'Нет новых имён для добавления' : 'Введите имя игрока');
+      return;
+    }
+
+    session.players.push(...newPlayers);
+    saveToStorage();
+    renderSummary();
+    updatePlayerSelect();
+
+    if (isListMode) {
+      document.getElementById('newPlayerList').value = '';
+    } else {
+      document.getElementById('newPlayerName').value = '';
+    }
+  }
+
+  // === ИГРОКИ ===
+  function removePlayer(name) {
+    if (!currentSessionId) return;
+    const session = sessions[currentSessionId];
+    if (session.transactions.some(t => t.player === name)) {
+      alert('Нельзя удалить игрока с операциями');
+      return;
+    }
+    session.players = session.players.filter(p => p !== name);
+    saveToStorage();
+    renderSummary();
+    updatePlayerSelect();
+  }
+
+  function updatePlayerSelect() {
+    if (!currentSessionId) return;
+    const select = document.getElementById('playerSelect');
+    const session = sessions[currentSessionId];
+
+    select.innerHTML = '<option value="">Выберите игрока</option>';
+    session.players.forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    });
+    select.disabled = session.players.length === 0;
+  }
+
+  // === ТРАНЗАКЦИИ ===
+  function addTransaction() {
+    if (!currentSessionId) return;
+    const playerName = document.getElementById('playerSelect').value;
+    const type = document.getElementById('operationType').value;
+    const amountRaw = document.getElementById('amount').value;
+
+    if (!playerName) { alert('Выберите игрока'); return; }
+    const amount = parseFloat(amountRaw);
+    if (isNaN(amount) || amount <= 0) { alert('Сумма должна быть положительной'); return; }
+
+    const session = sessions[currentSessionId];
+    if (type === 'cash_out') {
+      const totalBuyIn = session.transactions
+        .filter(t => t.player === playerName && t.type === 'buy_in')
+        .reduce((sum, t) => sum + t.amount, 0);
+      if (totalBuyIn <= 0) {
+        alert('Нельзя сделать кэш-аут без бай-ина');
+        return;
+      }
+    }
+
+    session.transactions.push({ player: playerName, type, amount });
+    saveToStorage();
+    renderTransactions();
+    renderSummary();
+    document.getElementById('amount').value = '';
+  }
+
+  function renderTransactions() {
+    if (!currentSessionId) return;
+    const tbody = document.getElementById('transactionsList');
+    tbody.innerHTML = '';
+    const trans = sessions[currentSessionId].transactions;
+    trans.forEach((t, i) => {
+      const row = tbody.insertRow();
+      row.insertCell(0).textContent = t.player;
+      row.insertCell(1).textContent = t.type === 'buy_in' ? 'Бай-ин' : 'Кэш-аут';
+      row.insertCell(2).textContent = parseFloat(t.amount.toFixed(2));
+      const cell = row.insertCell(3);
+      const btn = document.createElement('button');
+      btn.textContent = 'Удалить';
+      btn.onclick = () => {
+        trans.splice(i, 1);
+        saveToStorage();
+        renderTransactions();
+        renderSummary();
+        updatePlayerSelect();
+      };
+      cell.appendChild(btn);
+    });
+  }
+
+  // === СВОДКА ПО ИГРОКАМ ===
+  function renderSummary() {
+    if (!currentSessionId) return;
+    const session = sessions[currentSessionId];
+    const summary = {};
+    session.players.forEach(p => summary[p] = { buyIn: 0, cashOut: 0 });
+    session.transactions.forEach(t => {
+      if (t.type === 'buy_in') summary[t.player].buyIn += t.amount;
+      else summary[t.player].cashOut += t.amount;
+    });
+
+    const list = session.players.map(name => ({
+      name,
+      buyIn: summary[name].buyIn,
+      cashOut: summary[name].cashOut,
+      result: summary[name].cashOut - summary[name].buyIn
+    }));
+
+    const tbody = document.getElementById('summaryList');
+    tbody.innerHTML = '';
+    list.sort((a, b) => b.result - a.result);
+    list.forEach(p => {
+      const row = tbody.insertRow();
+      row.insertCell(0).textContent = p.name;
+      row.insertCell(1).textContent = parseFloat(p.buyIn.toFixed(2));
+      row.insertCell(2).textContent = parseFloat(p.cashOut.toFixed(2));
+      const resCell = row.insertCell(3);
+      const res = parseFloat(p.result.toFixed(2));
+      resCell.textContent = res;
+      if (res > 0.01) resCell.className = 'positive';
+      else if (res < -0.01) resCell.className = 'negative';
+      else resCell.className = 'zero';
+
+      const actionCell = row.insertCell(4);
+      if (summary[p.name].buyIn === 0 && summary[p.name].cashOut === 0) {
+        const delBtn = document.createElement('button');
+        delBtn.textContent = 'Удалить';
+        delBtn.onclick = () => removePlayer(p.name);
+        actionCell.appendChild(delBtn);
+      } else {
+        actionCell.textContent = '—';
+      }
+    });
+
+    document.getElementById('calcBtn').disabled = list.length < 2;
+  }
+
+  // === ВЗАИМОРАСЧЁТЫ ===
+  function calculateSettlements() {
+    if (!currentSessionId) return;
+    const session = sessions[currentSessionId];
+    const summary = {};
+    session.players.forEach(p => summary[p] = { net: 0 });
+    session.transactions.forEach(t => {
+      summary[t.player].net += (t.type === 'buy_in' ? -t.amount : t.amount);
+    });
+
+    const total = Object.values(summary).reduce((sum, p) => sum + p.net, 0);
+    const isBalanced = Math.abs(total) <= 0.01;
+
+    if (!isBalanced) {
+      alert(`Внимание: общий баланс ≠ 0 (${total.toFixed(2)}).`);
+    }
+
+    const creditors = [];
+    const debtors = [];
+    Object.entries(summary).forEach(([name, data]) => {
+      if (data.net > 0.01) creditors.push({ name, amount: data.net });
+      else if (data.net < -0.01) debtors.push({ name, amount: -data.net });
+    });
+
+    const transfers = [];
+    let d = 0, c = 0;
+    while (d < debtors.length && c < creditors.length) {
+      const debtor = debtors[d];
+      const creditor = creditors[c];
+      const amount = Math.min(debtor.amount, creditor.amount);
+      transfers.push({ from: debtor.name, to: creditor.name, amount: parseFloat(amount.toFixed(2)) });
+      debtor.amount -= amount;
+      creditor.amount -= amount;
+      if (debtor.amount < 0.01) d++;
+      if (creditor.amount < 0.01) c++;
+    }
+
+    const box = document.getElementById('resultBox');
+    if (transfers.length === 0) {
+      box.innerHTML = '<p>Все в расчёте!</p>';
+    } else {
+      box.innerHTML = '<p><strong>Минимальные переводы:</strong></p><ul>' +
+        transfers.map(t => `<li><strong>${t.from}</strong> → <strong>${t.to}</strong>: ${t.amount} ₽</li>`).join('') +
+        '</ul>';
+    }
+    box.style.display = 'block';
+    document.getElementById('exportBtn').disabled = false;
+    window.transfersForExport = transfers;
+
+    document.getElementById('finishBtn').style.display = isBalanced ? 'inline-block' : 'none';
+  }
+
+  // === ЭКСПОРТ ===
+  function exportToExcel() {
+    if (!currentSessionId) return;
+    const session = sessions[currentSessionId];
+    const wb = XLSX.utils.book_new();
+
+    const dataSheet = session.transactions.map(t => [
+      t.player,
+      t.type === 'buy_in' ? t.amount : '',
+      t.type === 'cash_out' ? t.amount : ''
+    ]);
+    const ws1 = XLSX.utils.aoa_to_sheet([
+      ['Игрок', 'Бай-ин', 'Кэш-аут'],
+      ...dataSheet
+    ]);
+    XLSX.utils.book_append_sheet(wb, ws1, 'Транзакции');
+
+    const summaryRows = [...document.querySelectorAll('#summaryTable tbody tr')].map(row => {
+      const cells = row.querySelectorAll('td');
+      return [cells[0].textContent, cells[1].textContent, cells[2].textContent, cells[3].textContent];
+    });
+    const ws2 = XLSX.utils.aoa_to_sheet([
+      ['Игрок', 'Σ Бай-ин', 'Σ Кэш-аут', 'Результат'],
+      ...summaryRows
+    ]);
+    XLSX.utils.book_append_sheet(wb, ws2, 'Итоги');
+
+    const transfers = window.transfersForExport || [];
+    const ws3 = XLSX.utils.aoa_to_sheet([
+      ['От кого', 'Кому', 'Сумма'],
+      ...transfers.map(t => [t.from, t.to, t.amount])
+    ]);
+    XLSX.utils.book_append_sheet(wb, ws3, 'Переводы');
+
+    const sessionName = session.name || 'покер';
+    XLSX.writeFile(wb, `${sessionName}.xlsx`);
+  }
+
+  // === ЗАВЕРШЕНИЕ СЕССИИ ===
+  function finishSession() {
+    if (!confirm('Завершить сессию? Все данные останутся в архиве.')) return;
+    currentSessionId = null;
+    saveToStorage();
+    updateUI();
+  }
+
+  // === СБРОС СЕССИИ ===
+  function showResetDialog() {
+    if (!currentSessionId) return;
+    document.getElementById('resetDialog').style.display = 'block';
+    document.getElementById('resetConfirmInput').value = '';
+  }
+
+  function hideResetDialog() {
+    document.getElementById('resetDialog').style.display = 'none';
+  }
+
+  function confirmReset() {
+    const input = document.getElementById('resetConfirmInput').value.trim();
+    if (input.toLowerCase() !== 'сбросить') {
+      alert('Введите точное слово "сбросить"');
+      return;
+    }
+    if (confirm('Окончательно сбросить все данные текущей сессии?')) {
+      const session = sessions[currentSessionId];
+      session.players = [];
+      session.transactions = [];
+      saveToStorage();
+      renderTransactions();
+      renderSummary();
+      updatePlayerSelect();
+      document.getElementById('resultBox').style.display = 'none';
+      document.getElementById('exportBtn').disabled = true;
+      document.getElementById('finishBtn').style.display = 'none';
+      hideResetDialog();
+    }
+  }
+
+  // === СВОРАЧИВАНИЕ БЛОКОВ ===
+  function toggleSection(sectionId) {
+    const content = document.getElementById(`${sectionId}Content`);
+    const icon = document.querySelector(`.collapsible-header[onclick*="${sectionId}"] .toggle-icon`);
+    
+    if (content.classList.contains('collapsed')) {
+      content.classList.remove('collapsed');
+      icon.textContent = '−';
+    } else {
+      content.classList.add('collapsed');
+      icon.textContent = '+';
+    }
+  }
+
+  // === ОБНОВЛЕНИЕ ИНТЕРФЕЙСА ===
+  function updateUI() {
+    const hasSession = !!currentSessionId;
+    document.getElementById('mainContent').style.display = hasSession ? 'block' : 'none';
+    document.getElementById('noSessionMessage').style.display = hasSession ? 'none' : 'block';
+    document.getElementById('resetBtn').disabled = !hasSession;
+    if (hasSession) {
+      updatePlayerSelect();
+      renderTransactions();
+      renderSummary();
+    } else {
+      document.getElementById('resultBox').style.display = 'none';
+      document.getElementById('exportBtn').disabled = true;
+      document.getElementById('finishBtn').style.display = 'none';
+      // Сбрасываем режим ввода
+      isListMode = false;
+      document.getElementById('toggleInputModeBtn').textContent = 'Добавить списком';
+    }
+    renderSessionsTable();
+  }
+
+  function renderSessionsTable() {
+    const tbody = document.getElementById('sessionsList');
+    const note = document.getElementById('noSessionsNote');
+    tbody.innerHTML = '';
+    const ids = Object.keys(sessions);
+    if (ids.length === 0) {
+      note.style.display = 'block';
+      return;
+    }
+    note.style.display = 'none';
+
+    ids.forEach(id => {
+      const s = sessions[id];
+      const row = tbody.insertRow();
+      row.insertCell(0).textContent = s.name;
+      row.insertCell(1).textContent = new Date(s.createdAt).toLocaleString('ru-RU');
+      row.insertCell(2).textContent = s.players.length;
+      row.insertCell(3).textContent = s.transactions.length;
+      const actions = row.insertCell(4);
+      if (id === currentSessionId) {
+        actions.innerHTML = '<em>Текущая</em>';
+      } else {
+        const open = document.createElement('span');
+        open.className = 'action-link';
+        open.textContent = 'Открыть';
+        open.onclick = () => switchSession(id);
+        actions.appendChild(open);
+
+        const del = document.createElement('span');
+        del.className = 'action-link';
+        del.textContent = 'Удалить';
+        del.onclick = () => deleteSession(id);
+        actions.appendChild(del);
+      }
+    });
+  }
+
+  // === ИНИЦИАЛИЗАЦИЯ ===
+  function init() {
+    loadFromStorage();
+    const now = new Date();
+    document.getElementById('newSessionName').value = `Сессия от ${now.toLocaleDateString('ru-RU')}`;
+    updateUI();
+  }
+
+  // Поддержка Enter
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('playerInputContainer').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        addPlayersFromCurrentInput();
+      }
+    });
+
+    document.getElementById('amount').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        addTransaction();
+      }
+    });
+
+    init();
+  });
+</script>
+
+</body>
+</html>

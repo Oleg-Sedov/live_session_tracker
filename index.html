@@ -1004,22 +1004,15 @@
 
   // Поддержка Enter
   document.addEventListener('DOMContentLoaded', () => {
-    // Обработка ввода игроков
+    // Обработка Enter только для input (не для textarea)
     document.getElementById('playerInputContainer').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        if (isListMode) {
-          // В режиме списка: Enter = перенос строки, НЕ добавление
-          e.preventDefault(); // предотвращаем отправку формы
-          // Перенос строки уже работает в textarea по умолчанию
-        } else {
-          // В режиме одного игрока: Enter = добавить
-          e.preventDefault();
-          addPlayersFromCurrentInput();
-        }
+      if (e.key === 'Enter' && !isListMode) {
+        e.preventDefault();
+        addPlayersFromCurrentInput();
       }
+      // В режиме списка (textarea) — ничего не делаем, Enter работает по умолчанию
     });
 
-    // Обработка суммы операции
     document.getElementById('amount').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
         addTransaction();

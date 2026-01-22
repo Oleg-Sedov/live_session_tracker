@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Покер-Шмокер</title>
+  <title>Покер — Учёт сессий</title>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
   <style>
     body {
@@ -220,14 +220,14 @@
 <body>
 
 <div class="container">
-  <h1>Учёт сессий</h1>
+  <h1>Покер — Учёт сессий</h1>
 
   <!-- Управление сессиями -->
   <div class="session-controls">
     <input type="text" id="newSessionName" placeholder="Название сессии" value="" />
-    <button onclick="createNewSession()">+ Новая live-сессия</button>
+    <button onclick="createNewSession()">+ Новая сессия</button>
     <button onclick="showResetDialog()" class="danger-btn" id="resetBtn" disabled>Сбросить сессию</button>
-    <a href="https://oleg-sedov.github.io/settlements/" target="_blank">
+    <a href="/settlements.html" target="_blank">
       <button class="online-btn">Рассчитать результаты онлайн-сессии</button>
     </a>
   </div>
@@ -553,23 +553,28 @@
     document.getElementById('amount').value = '';
   }
 
+  // === ИСПРАВЛЕНА: безопасный рендер транзакций ===
   function renderTransactions() {
     if (!currentSessionId) return;
-    const isCompleted = sessions[currentSessionId].status === 'completed';
+    
+    const session = sessions[currentSessionId];
+    const isCompleted = session.status === 'completed';
+    
     const tbody = document.getElementById('transactionsList');
     tbody.innerHTML = '';
-    const trans = sessions[currentSessionId].transactions;
-    trans.forEach((t, i) => {
+    
+    session.transactions.forEach((t, i) => {
       const row = tbody.insertRow();
       row.insertCell(0).textContent = t.player;
       row.insertCell(1).textContent = t.type === 'buy_in' ? 'Бай-ин' : 'Кэш-аут';
       row.insertCell(2).textContent = parseFloat(t.amount.toFixed(2));
+      
       const cell = row.insertCell(3);
       if (!isCompleted) {
         const btn = document.createElement('button');
         btn.textContent = 'Удалить';
         btn.onclick = () => {
-          trans.splice(i, 1);
+          session.transactions.splice(i, 1);
           saveToStorage();
           renderTransactions();
           renderSummary();
@@ -644,17 +649,15 @@
     if (!currentSessionId) return false;
     const session = sessions[currentSessionId];
     
-    // Условие 1: нет транзакций
     if (session.transactions.length === 0) {
       return true;
     }
 
-    // Условие 2: все вышли и баланс = 0
     const settlementStatus = getSettlementStatus();
     return settlementStatus.canCalculate;
   }
 
-  // === СВОДКА ПО ИГРОКАМ ===
+  // === ИСПРАВЛЕНА: безопасный рендер итогов ===
   function renderSummary() {
     if (!currentSessionId) return;
     const session = sessions[currentSessionId];
@@ -706,7 +709,6 @@
       }
     });
 
-    // Обновляем статус расчёта
     const settlementStatus = getSettlementStatus();
     document.getElementById('calcBtn').disabled = !settlementStatus.canCalculate;
 
@@ -718,7 +720,6 @@
       balanceWarning.style.display = 'none';
     }
 
-    // Обновляем кнопку "Завершить сессию"
     document.getElementById('finishBtn').style.display = 
       (!isCompleted && canFinishSession()) ? 'inline-block' : 'none';
   }
@@ -771,7 +772,6 @@
     document.getElementById('exportBtn').disabled = false;
     window.transfersForExport = transfers;
 
-    // Обновляем кнопку завершения (на случай, если расчёт изменил состояние)
     document.getElementById('finishBtn').style.display = 
       (canFinishSession()) ? 'inline-block' : 'none';
   }
@@ -902,7 +902,6 @@
       if (el) el.style.display = (hasSession && !isCompleted) ? '' : 'none';
     });
 
-    // Кнопка закрыть для завершённой сессии
     document.getElementById('closeCompletedBtn').style.display = 
       (hasSession && isCompleted) ? 'inline-block' : 'none';
 
@@ -1005,13 +1004,22 @@
 
   // Поддержка Enter
   document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('playerInputContainer').addEventListener('keypress', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        addPlayersFromCurrentInput();
+    // Обработка ввода игроков
+    document.getElementById('playerInputContainer').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        if (isListMode) {
+          // В режиме списка: Enter = перенос строки, НЕ добавление
+          e.preventDefault(); // предотвращаем отправку формы
+          // Перенос строки уже работает в textarea по умолчанию
+        } else {
+          // В режиме одного игрока: Enter = добавить
+          e.preventDefault();
+          addPlayersFromCurrentInput();
+        }
       }
     });
 
+    // Обработка суммы операции
     document.getElementById('amount').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
         addTransaction();

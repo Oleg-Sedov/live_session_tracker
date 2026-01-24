@@ -274,12 +274,14 @@
         <span class="toggle-icon">+</span> Транзакции
       </h2>
       <div id="transactionsContent" class="collapsible-content collapsed">
-        <table id="transactionsTable">
-          <thead>
-            <tr><th>Игрок</th><th>Тип</th><th>Сумма</th><th>Действие</th></tr>
-          </thead>
-          <tbody id="transactionsList"></tbody>
-        </table>
+        <div class="table-responsive">
+          <table id="transactionsTable">
+            <thead>
+              <tr><th>Игрок</th><th>Тип</th><th>Сумма</th><th>Действие</th></tr>
+            </thead>
+            <tbody id="transactionsList"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -289,12 +291,14 @@
         <span class="toggle-icon">+</span> Итоги по игрокам
       </h2>
       <div id="summaryContent" class="collapsible-content collapsed">
-        <table id="summaryTable">
-          <thead>
-            <tr><th>Игрок</th><th>Σ Бай-ин</th><th>Σ Кэш-аут</th><th>Результат</th><th>Действие</th></tr>
-          </thead>
-          <tbody id="summaryList"></tbody>
-        </table>
+        <div class="table-responsive">
+          <table id="summaryTable">
+            <thead>
+              <tr><th>Игрок</th><th>Σ Бай-ин</th><th>Σ Кэш-аут</th><th>Результат</th><th>Действие</th></tr>
+            </thead>
+            <tbody id="summaryList"></tbody>
+          </table>
+        </div>
       </div>
     </div>
     <div id="balanceWarning" class="error" style="display:none;"></div>
@@ -533,10 +537,19 @@
 
     if (!playerName) { alert('Выберите игрока'); return; }
     const amount = parseFloat(amountRaw);
-    if (isNaN(amount) || amount <= 0) { alert('Сумма должна быть положительной'); return; }
+    if (isNaN(amount)) { alert('Введите корректное число'); return; }
 
     const session = sessions[currentSessionId];
-    if (type === 'cash_out') {
+    if (type === 'buy_in') {
+      if (amount <= 0) {
+        alert('Бай-ин должен быть положительным');
+        return;
+      }
+    } else if (type === 'cash_out') {
+      if (amount < 0) {
+        alert('Кэш-аут не может быть отрицательным');
+        return;
+      }
       const totalBuyIn = session.transactions
         .filter(t => t.player === playerName && t.type === 'buy_in')
         .reduce((sum, t) => sum + t.amount, 0);

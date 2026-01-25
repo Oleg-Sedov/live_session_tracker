@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Покер — Учёт сессий</title>
+  <title>Учёт сессий</title>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
   <style>
     body {
@@ -271,7 +271,13 @@
         <option value="buy_in">Бай-ин</option>
         <option value="cash_out">Кэш-аут</option>
       </select>
-      <input type="number" id="amount" placeholder="Сумма" step="any" />
+      
+      <input type="number" id="amountInput" placeholder="Сумма" step="any" />
+      <select id="amountQuickSelect">
+        <option value="">— Быстрый выбор —</option>
+        <!-- Опции генерируются динамически -->
+      </select>
+      
       <button onclick="addTransaction()">Добавить</button>
     </div>
 
@@ -541,16 +547,53 @@
     select.disabled = session.players.length === 0;
   }
 
+  // === ГЕНЕРАЦИЯ БЫСТРОГО ВЫБОРА СУММ ===
+  function updateAmountQuickSelect() {
+    const type = document.getElementById('operationType').value;
+    const select = document.getElementById('amountQuickSelect');
+    select.innerHTML = '<option value="">— Быстрый выбор —</option>';
+
+    if (type === 'buy_in') {
+      for (let i = 500; i <= 20000; i += 500) {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = i;
+        select.appendChild(opt);
+      }
+    } else if (type === 'cash_out') {
+      for (let i = 1000; i <= 30000; i += 100) {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = i;
+        select.appendChild(opt);
+      }
+    }
+  }
+
   // === ТРАНЗАКЦИИ ===
   function addTransaction() {
     if (!currentSessionId) return;
     const playerName = document.getElementById('playerSelect').value;
     const type = document.getElementById('operationType').value;
-    const amountRaw = document.getElementById('amount').value;
+    const amountInputVal = document.getElementById('amountInput').value.trim();
+    const quickSelectVal = document.getElementById('amountQuickSelect').value;
 
     if (!playerName) { alert('Выберите игрока'); return; }
-    const amount = parseFloat(amountRaw);
-    if (isNaN(amount)) { alert('Введите корректное число'); return; }
+
+    let amount;
+    if (amountInputVal !== '') {
+      amount = parseFloat(amountInputVal);
+    } else if (quickSelectVal !== '') {
+      amount = parseFloat(quickSelectVal);
+    } else {
+      alert('Введите сумму или выберите из списка');
+      return;
+    }
+
+    if (isNaN(amount)) {
+      alert('Введите корректное число');
+      return;
+    }
 
     const session = sessions[currentSessionId];
     if (type === 'buy_in') {
@@ -576,7 +619,8 @@
     saveToStorage();
     renderTransactions();
     renderSummary();
-    document.getElementById('amount').value = '';
+    document.getElementById('amountInput').value = '';
+    document.getElementById('amountQuickSelect').value = '';
   }
 
   // === ИСПРАВЛЕНА: безопасный рендер транзакций ===
@@ -919,7 +963,8 @@
       'toggleInputModeBtn',
       'playerSelect',
       'operationType',
-      'amount',
+      'amountInput',
+      'amountQuickSelect',
       'calcBtn',
       'finishBtn'
     ];
@@ -937,6 +982,7 @@
       if (!isCompleted) {
         updatePlayerSelect();
         renderTransactions();
+        updateAmountQuickSelect(); // ← обновляем список при переключении
       }
       renderSummary();
       if (isCompleted && sessions[currentSessionId].settlements) {
@@ -1026,20 +1072,22 @@
     const now = new Date();
     document.getElementById('newSessionName').value = `Сессия от ${now.toLocaleDateString('ru-RU')}`;
     updateUI();
+    updateAmountQuickSelect();
   }
 
-  // Поддержка Enter
+  // Обработчик переключения типа операции
   document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('operationType').addEventListener('change', updateAmountQuickSelect);
+
     // Обработка Enter только для input (не для textarea)
     document.getElementById('playerInputContainer').addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !isListMode) {
         e.preventDefault();
         addPlayersFromCurrentInput();
       }
-      // В режиме списка (textarea) — ничего не делаем, Enter работает по умолчанию
     });
 
-    document.getElementById('amount').addEventListener('keypress', (e) => {
+    document.getElementById('amountInput').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
         addTransaction();
       }

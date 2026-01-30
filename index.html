@@ -994,6 +994,12 @@
       const hasTransactions = session.transactions.some(t => t.player === p.name);
 
       if (!isCompleted) {
+
+        const opBtn = document.createElement('button');
+        opBtn.textContent = '+ операция';
+        opBtn.onclick = () => openPlayerOperationModal(p.name);
+        actionCell.appendChild(opBtn);
+        
         if (!hasTransactions) {
           const delBtn = document.createElement('button');
           delBtn.textContent = 'Удалить';
@@ -1002,10 +1008,6 @@
           actionCell.appendChild(document.createTextNode(' '));
         }
 
-        const opBtn = document.createElement('button');
-        opBtn.textContent = '+ операция';
-        opBtn.onclick = () => openPlayerOperationModal(p.name);
-        actionCell.appendChild(opBtn);
       } else {
         actionCell.textContent = '—';
       }

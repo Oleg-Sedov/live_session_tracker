@@ -264,8 +264,8 @@
     <!-- Добавление операции -->
     <h2>Добавить операцию</h2>
     <div>
-      <select id="playerSelect" disabled>
-        <option value="">Выберите игрока</option>
+      <select id="playerSelect" multiple size="5" style="width: 150px; height: auto;">
+        <option value="">— Выберите игроков —</option>
       </select>
       <select id="operationType">
         <option value="buy_in">Бай-ин</option>
@@ -532,18 +532,43 @@
     updatePlayerSelect();
   }
 
+  // === ОБНОВЛЕНИЕ СПИСКА ИГРОКОВ С МНОЖЕСТВЕННЫМ ВЫБОРОМ ===
   function updatePlayerSelect() {
     if (!currentSessionId) return;
     const select = document.getElementById('playerSelect');
     const session = sessions[currentSessionId];
 
-    select.innerHTML = '<option value="">Выберите игрока</option>';
+    // Сохраняем текущий выбор
+    const selected = Array.from(select.selectedOptions).map(opt => opt.value);
+
+    select.innerHTML = '';
+
+    // Опция "Выбрать всех"
+    const allOption = document.createElement('option');
+    allOption.value = '__ALL__';
+    allOption.textContent = 'Выбрать всех';
+    select.appendChild(allOption);
+
+    // Игроки
     session.players.forEach(name => {
       const opt = document.createElement('option');
       opt.value = name;
       opt.textContent = name;
+      if (selected.includes(name)) opt.selected = true;
       select.appendChild(opt);
     });
+
+    // Обработчик клика по "Выбрать всех"
+    select.addEventListener('click', function(e) {
+      if (e.target.value === '__ALL__') {
+        e.target.selected = false; // снимаем выделение с "всех"
+        for (let i = 1; i < select.options.length; i++) {
+          select.options[i].selected = true;
+        }
+      }
+    });
+
+    // Отключаем, если нет игроков
     select.disabled = session.players.length === 0;
   }
 
@@ -570,15 +595,23 @@
     }
   }
 
-  // === ТРАНЗАКЦИИ ===
+  // === ТРАНЗАКЦИИ С МНОЖЕСТВЕННЫМ ВЫБОРОМ ===
   function addTransaction() {
     if (!currentSessionId) return;
-    const playerName = document.getElementById('playerSelect').value;
+    const select = document.getElementById('playerSelect');
     const type = document.getElementById('operationType').value;
     const amountInputVal = document.getElementById('amountInput').value.trim();
     const quickSelectVal = document.getElementById('amountQuickSelect').value;
 
-    if (!playerName) { alert('Выберите игрока'); return; }
+    // Получаем выбранных игроков (игнорируем пустые и "__ALL__")
+    const selectedPlayers = Array.from(select.selectedOptions)
+      .map(opt => opt.value)
+      .filter(val => val && val !== '__ALL__');
+
+    if (selectedPlayers.length === 0) {
+      alert('Выберите хотя бы одного игрока');
+      return;
+    }
 
     let amount;
     if (amountInputVal !== '') {
@@ -596,6 +629,7 @@
     }
 
     const session = sessions[currentSessionId];
+
     if (type === 'buy_in') {
       if (amount <= 0) {
         alert('Бай-ин должен быть положительным');
@@ -606,16 +640,23 @@
         alert('Кэш-аут не может быть отрицательным');
         return;
       }
-      const totalBuyIn = session.transactions
-        .filter(t => t.player === playerName && t.type === 'buy_in')
-        .reduce((sum, t) => sum + t.amount, 0);
-      if (totalBuyIn <= 0) {
-        alert('Нельзя сделать кэш-аут без бай-ина');
-        return;
+      // Проверяем каждого игрока на наличие бай-ина
+      for (const playerName of selectedPlayers) {
+        const totalBuyIn = session.transactions
+          .filter(t => t.player === playerName && t.type === 'buy_in')
+          .reduce((sum, t) => sum + t.amount, 0);
+        if (totalBuyIn <= 0) {
+          alert(`Нельзя сделать кэш-аут для ${playerName} без бай-ина`);
+          return;
+        }
       }
     }
 
-    session.transactions.push({ player: playerName, type, amount });
+    // Добавляем транзакцию для каждого игрока
+    for (const playerName of selectedPlayers) {
+      session.transactions.push({ player: playerName, type, amount });
+    }
+
     saveToStorage();
     renderTransactions();
     renderSummary();

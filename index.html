@@ -157,19 +157,43 @@
 
     /* === АДАПТАЦИЯ ТАБЛИЦ ДЛЯ МОБИЛЬНЫХ === */
     .table-scroll-container {
-      overflow-x: auto;
       width: 100%;
       margin: 15px 0;
     }
-    .table-scroll-wrapper {
+    .table-wrapper {
+      display: flex;
+      overflow-x: auto;
       max-height: 350px;
-      overflow-y: auto;
       border: 1px solid #ddd;
       border-radius: 4px;
     }
-    .table-scroll-wrapper table {
-      min-width: 600px;
-      width: 100%;
+    .table-fixed,
+    .table-scrollable {
+      overflow-y: auto;
+      max-height: 350px;
+    }
+    .table-fixed {
+      background: white;
+      border-right: 2px solid #eee;
+      z-index: 1;
+    }
+    .table-scrollable {
+      flex: 1;
+    }
+    .table-fixed table,
+    .table-scrollable table {
+      width: auto;
+      min-width: 100%;
+      border-collapse: collapse;
+    }
+    .table-fixed th,
+    .table-fixed td {
+      background: #f0f0f0;
+      border: 1px solid #ddd;
+    }
+    .table-scrollable th,
+    .table-scrollable td {
+      border: 1px solid #ddd;
     }
 
     /* === КНОПКИ В АРХИВЕ === */
@@ -278,10 +302,13 @@
       background: #f0f0f0;
     }
 
-    /* === ВЫРАВНИВАНИЕ КНОПОК В СТОЛБЦЕ ДЕЙСТВИЕ === */
-    #summaryTable td:nth-child(5),
-    #summaryTable th:nth-child(5) {
+    /* === ШИРИНА СТОЛБЦА ДЕЙСТВИЕ === */
+    #summaryTable th:nth-child(4),
+    #summaryTable td:nth-child(4) {
       text-align: left;
+      width: 90px;
+      padding-left: 6px;
+      padding-right: 6px;
     }
   </style>
 </head>
@@ -359,19 +386,19 @@
       </h2>
       <div id="transactionsContent" class="collapsible-content collapsed">
         <div class="table-scroll-container">
-          <div class="table-scroll-wrapper">
-            <table id="transactionsTable">
-              <thead>
-                <tr>
-                  <th>Время</th>
-                  <th>Игрок</th>
-                  <th>Тип</th>
-                  <th>Сумма</th>
-                  <th>Действие</th>
-                </tr>
-              </thead>
-              <tbody id="transactionsList"></tbody>
-            </table>
+          <div class="table-wrapper" id="transactionsWrapper">
+            <div class="table-fixed">
+              <table>
+                <thead><tr><th>Время</th><th>Игрок</th></tr></thead>
+                <tbody id="transactionsFixedBody"></tbody>
+              </table>
+            </div>
+            <div class="table-scrollable">
+              <table>
+                <thead><tr><th>Тип</th><th>Сумма</th><th>Действие</th></tr></thead>
+                <tbody id="transactionsScrollableBody"></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -384,19 +411,19 @@
       </h2>
       <div id="summaryContent" class="collapsible-content collapsed">
         <div class="table-scroll-container">
-          <div class="table-scroll-wrapper">
-            <table id="summaryTable">
-              <thead>
-                <tr>
-                  <th>Игрок</th>
-                  <th>Σ Бай-ин</th>
-                  <th>Σ Кэш-аут</th>
-                  <th>Результат</th>
-                  <th>Действие</th>
-                </tr>
-              </thead>
-              <tbody id="summaryList"></tbody>
-            </table>
+          <div class="table-wrapper" id="summaryWrapper">
+            <div class="table-fixed">
+              <table>
+                <thead><tr><th>Игрок</th></tr></thead>
+                <tbody id="summaryFixedBody"></tbody>
+              </table>
+            </div>
+            <div class="table-scrollable">
+              <table>
+                <thead><tr><th>Σ Бай-ин</th><th>Σ Кэш-аут</th><th>Результат</th><th>Действие</th></tr></thead>
+                <tbody id="summaryScrollableBody"></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -432,19 +459,19 @@
     </h2>
     <div id="archiveContent" class="collapsible-content collapsed">
       <div class="table-scroll-container">
-        <div class="table-scroll-wrapper">
-          <table id="sessionsTable">
-            <thead>
-              <tr>
-                <th>Название</th>
-                <th>Дата создания</th>
-                <th>Игроков</th>
-                <th>Операций</th>
-                <th>Действия</th>
-              </tr>
-            </thead>
-            <tbody id="sessionsList"></tbody>
-          </table>
+        <div class="table-wrapper">
+          <div class="table-fixed">
+            <table>
+              <thead><tr><th>Название</th></tr></thead>
+              <tbody id="archiveFixedBody"></tbody>
+            </table>
+          </div>
+          <div class="table-scrollable">
+            <table>
+              <thead><tr><th>Дата создания</th><th>Игроков</th><th>Операций</th><th>Действия</th></tr></thead>
+              <tbody id="archiveScrollableBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
       <p id="noSessionsNote" style="text-align:center; color:#777; display:none;">Нет сохранённых сессий</p>
@@ -482,7 +509,7 @@
   let isListMode = false;
   let selectedPlayers = [];
   let currentPlayerForModal = null;
-  let sortByResult = false; // false = по алфавиту, true = по результату
+  let sortByResult = false;
 
   // Проверка доступности localStorage
   function canUseLocalStorage() {
@@ -713,7 +740,6 @@
     }
   }
 
-  // Обработчик "Выбрать всех"
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('chk_select_all').onchange = function() {
       const session = sessions[currentSessionId];
@@ -728,7 +754,6 @@
     };
   });
 
-  // Закрытие выпадающего списка только при клике вне
   document.addEventListener('click', function(e) {
     const multiselect = document.getElementById('playerMultiselect');
     if (!multiselect.contains(e.target)) {
@@ -827,7 +852,6 @@
     renderTransactions();
     renderSummary();
 
-    // СБРОС ПОЛЕЙ
     selectedPlayers = [];
     updatePlayerSelectText();
     document.getElementById('operationType').value = 'buy_in';
@@ -835,25 +859,30 @@
     document.getElementById('amountQuickSelect').value = '';
   }
 
-  // === РЕНДЕР ТРАНЗАКЦИЙ ===
+  // === РЕНДЕР ТРАНЗАКЦИЙ С РАЗДЕЛЁННОЙ ТАБЛИЦЕЙ ===
   function renderTransactions() {
     if (!currentSessionId) return;
     
     const session = sessions[currentSessionId];
     const isCompleted = session.status === 'completed';
     
-    const tbody = document.getElementById('transactionsList');
-    tbody.innerHTML = '';
+    const fixedBody = document.getElementById('transactionsFixedBody');
+    const scrollableBody = document.getElementById('transactionsScrollableBody');
+    fixedBody.innerHTML = '';
+    scrollableBody.innerHTML = '';
     
     session.transactions.forEach((t, i) => {
-      const row = tbody.insertRow();
-      const timeStr = new Date(t.timestamp).toLocaleTimeString('ru-RU');
-      row.insertCell(0).textContent = timeStr;
-      row.insertCell(1).textContent = t.player;
-      row.insertCell(2).textContent = t.type === 'buy_in' ? 'Бай-ин' : 'Кэш-аут';
-      row.insertCell(3).textContent = parseFloat(t.amount.toFixed(2));
+      // Фиксированная часть
+      const fixedRow = fixedBody.insertRow();
+      fixedRow.insertCell(0).textContent = new Date(t.timestamp).toLocaleTimeString('ru-RU');
+      fixedRow.insertCell(1).textContent = t.player;
+
+      // Прокручиваемая часть
+      const scrollRow = scrollableBody.insertRow();
+      scrollRow.insertCell(0).textContent = t.type === 'buy_in' ? 'Бай-ин' : 'Кэш-аут';
+      scrollRow.insertCell(1).textContent = parseFloat(t.amount.toFixed(2));
       
-      const cell = row.insertCell(4);
+      const cell = scrollRow.insertCell(2);
       if (!isCompleted) {
         const btn = document.createElement('button');
         btn.textContent = 'Удалить';
@@ -869,7 +898,130 @@
         cell.textContent = '—';
       }
     });
+
+    syncScroll('transactionsWrapper');
   }
+
+  // === РЕНДЕР СПИСКА ИГРОКОВ С РАЗДЕЛЁННОЙ ТАБЛИЦЕЙ ===
+  function renderSummary() {
+    if (!currentSessionId) return;
+    const session = sessions[currentSessionId];
+    const isCompleted = session.status === 'completed';
+    const summary = {};
+    session.players.forEach(p => summary[p] = { buyIn: 0, cashOut: 0 });
+    session.transactions.forEach(t => {
+      if (t.type === 'buy_in') summary[t.player].buyIn += t.amount;
+      else summary[t.player].cashOut += t.amount;
+    });
+
+    const list = session.players.map(name => ({
+      name,
+      buyIn: summary[name].buyIn,
+      cashOut: summary[name].cashOut,
+      result: summary[name].cashOut - summary[name].buyIn
+    }));
+
+    let sortedList = [...list];
+    if (sortByResult) {
+      sortedList.sort((a, b) => b.result - a.result);
+    } else {
+      sortedList.sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    }
+
+    const fixedBody = document.getElementById('summaryFixedBody');
+    const scrollableBody = document.getElementById('summaryScrollableBody');
+    fixedBody.innerHTML = '';
+    scrollableBody.innerHTML = '';
+
+    sortedList.forEach(p => {
+      const status = getPlayerResultStatus(p.name, session.transactions);
+      
+      // Фиксированная часть
+      const fixedRow = fixedBody.insertRow();
+      fixedRow.insertCell(0).textContent = p.name;
+
+      // Прокручиваемая часть
+      const scrollRow = scrollableBody.insertRow();
+      scrollRow.insertCell(0).textContent = parseFloat(p.buyIn.toFixed(2));
+      scrollRow.insertCell(1).textContent = parseFloat(p.cashOut.toFixed(2));
+      
+      const resCell = scrollRow.insertCell(2);
+      if (status.showResult) {
+        const res = status.result;
+        resCell.textContent = parseFloat(res.toFixed(2));
+        if (res > 0.01) resCell.className = 'positive';
+        else if (res < -0.01) resCell.className = 'negative';
+        else resCell.className = 'zero';
+      } else {
+        resCell.textContent = '—';
+        resCell.className = '';
+      }
+
+      const actionCell = scrollRow.insertCell(3);
+      actionCell.style.textAlign = 'left';
+
+      const hasTransactions = session.transactions.some(t => t.player === p.name);
+
+      if (!isCompleted) {
+        // Сначала "+ операция"
+        const opBtn = document.createElement('button');
+        opBtn.textContent = '+ операция';
+        opBtn.onclick = () => openPlayerOperationModal(p.name);
+        actionCell.appendChild(opBtn);
+
+        // Потом "Удалить", если нужно
+        if (!hasTransactions) {
+          actionCell.appendChild(document.createTextNode(' '));
+          const delBtn = document.createElement('button');
+          delBtn.textContent = 'Удалить';
+          delBtn.onclick = () => removePlayer(p.name);
+          actionCell.appendChild(delBtn);
+        }
+      } else {
+        actionCell.textContent = '—';
+      }
+    });
+
+    const settlementStatus = getSettlementStatus();
+    document.getElementById('calcBtn').disabled = !settlementStatus.canCalculate;
+
+    const balanceWarning = document.getElementById('balanceWarning');
+    if (settlementStatus.isAllExited && !settlementStatus.canCalculate) {
+      balanceWarning.textContent = `Баланс не сошёлся (${settlementStatus.total.toFixed(2)} ₽), проверьте кэш-аут`;
+      balanceWarning.style.display = 'block';
+    } else {
+      balanceWarning.style.display = 'none';
+    }
+
+    document.getElementById('finishBtn').style.display = 
+      (!isCompleted && canFinishSession()) ? 'inline-block' : 'none';
+
+    syncScroll('summaryWrapper');
+  }
+
+  // === СИНХРОНИЗАЦИЯ ПРОКРУТКИ ===
+  function syncScroll(wrapperId) {
+    const wrapper = document.getElementById(wrapperId);
+    if (!wrapper) return;
+    const fixed = wrapper.querySelector('.table-fixed');
+    const scrollable = wrapper.querySelector('.table-scrollable');
+    if (fixed && scrollable) {
+      fixed.scrollTop = scrollable.scrollTop;
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    // Обработчик прокрутки для всех таблиц
+    ['transactionsWrapper', 'summaryWrapper', 'archiveWrapper'].forEach(id => {
+      const wrapper = document.getElementById(id);
+      if (wrapper) {
+        const scrollable = wrapper.querySelector('.table-scrollable');
+        if (scrollable) {
+          scrollable.addEventListener('scroll', () => syncScroll(id));
+        }
+      }
+    });
+  });
 
   // === ЛОГИКА РЕЗУЛЬТАТА ИГРОКА ===
   function getPlayerResultStatus(playerName, transactions) {
@@ -941,94 +1093,7 @@
     return settlementStatus.canCalculate;
   }
 
-  // === РЕНДЕР СПИСКА ИГРОКОВ ===
-  function renderSummary() {
-    if (!currentSessionId) return;
-    const session = sessions[currentSessionId];
-    const isCompleted = session.status === 'completed';
-    const summary = {};
-    session.players.forEach(p => summary[p] = { buyIn: 0, cashOut: 0 });
-    session.transactions.forEach(t => {
-      if (t.type === 'buy_in') summary[t.player].buyIn += t.amount;
-      else summary[t.player].cashOut += t.amount;
-    });
-
-    const list = session.players.map(name => ({
-      name,
-      buyIn: summary[name].buyIn,
-      cashOut: summary[name].cashOut,
-      result: summary[name].cashOut - summary[name].buyIn
-    }));
-
-    let sortedList = [...list];
-    if (sortByResult) {
-      sortedList.sort((a, b) => b.result - a.result);
-    } else {
-      sortedList.sort((a, b) => a.name.localeCompare(b.name, 'ru'));
-    }
-
-    const tbody = document.getElementById('summaryList');
-    tbody.innerHTML = '';
-    sortedList.forEach(p => {
-      const status = getPlayerResultStatus(p.name, session.transactions);
-      const row = tbody.insertRow();
-      row.insertCell(0).textContent = p.name;
-      row.insertCell(1).textContent = parseFloat(p.buyIn.toFixed(2));
-      row.insertCell(2).textContent = parseFloat(p.cashOut.toFixed(2));
-      
-      const resCell = row.insertCell(3);
-      if (status.showResult) {
-        const res = status.result;
-        resCell.textContent = parseFloat(res.toFixed(2));
-        if (res > 0.01) resCell.className = 'positive';
-        else if (res < -0.01) resCell.className = 'negative';
-        else resCell.className = 'zero';
-      } else {
-        resCell.textContent = '—';
-        resCell.className = '';
-      }
-
-      const actionCell = row.insertCell(4);
-      actionCell.style.textAlign = 'left';
-
-      const hasTransactions = session.transactions.some(t => t.player === p.name);
-
-      if (!isCompleted) {
-
-        const opBtn = document.createElement('button');
-        opBtn.textContent = '+ операция';
-        opBtn.onclick = () => openPlayerOperationModal(p.name);
-        actionCell.appendChild(opBtn);
-        
-        if (!hasTransactions) {
-          const delBtn = document.createElement('button');
-          delBtn.textContent = 'Удалить';
-          delBtn.onclick = () => removePlayer(p.name);
-          actionCell.appendChild(delBtn);
-          actionCell.appendChild(document.createTextNode(' '));
-        }
-
-      } else {
-        actionCell.textContent = '—';
-      }
-    });
-
-    const settlementStatus = getSettlementStatus();
-    document.getElementById('calcBtn').disabled = !settlementStatus.canCalculate;
-
-    const balanceWarning = document.getElementById('balanceWarning');
-    if (settlementStatus.isAllExited && !settlementStatus.canCalculate) {
-      balanceWarning.textContent = `Баланс не сошёлся (${settlementStatus.total.toFixed(2)} ₽), проверьте кэш-аут`;
-      balanceWarning.style.display = 'block';
-    } else {
-      balanceWarning.style.display = 'none';
-    }
-
-    document.getElementById('finishBtn').style.display = 
-      (!isCompleted && canFinishSession()) ? 'inline-block' : 'none';
-  }
-
-  // === ВЗАИМОРАСЧЁТЫ (ТОЛЬКО ЖАДНЫЙ АЛГОРИТМ) ===
+  // === ВЗАИМОРАСЧЁТЫ ===
   function calculateSettlements() {
     if (!currentSessionId) return;
     const session = sessions[currentSessionId];
@@ -1101,9 +1166,15 @@
     ]);
     XLSX.utils.book_append_sheet(wb, ws1, 'Транзакции');
 
-    const summaryRows = [...document.querySelectorAll('#summaryTable tbody tr')].map(row => {
+    const summaryRows = [...document.querySelectorAll('#summaryScrollableBody tr')].map((row, i) => {
+      const fixedCell = document.querySelectorAll('#summaryFixedBody tr')[i]?.cells[0];
       const cells = row.querySelectorAll('td');
-      return [cells[0].textContent, cells[1].textContent, cells[2].textContent, cells[3].textContent];
+      return [
+        fixedCell?.textContent || '',
+        cells[0]?.textContent || '',
+        cells[1]?.textContent || '',
+        cells[2]?.textContent || ''
+      ];
     });
     const ws2 = XLSX.utils.aoa_to_sheet([
       ['Игрок', 'Σ Бай-ин', 'Σ Кэш-аут', 'Результат'],
@@ -1257,25 +1328,31 @@
 
   // === РЕНДЕР АРХИВА ===
   function renderSessionsTable() {
-    const tbody = document.getElementById('sessionsList');
-    const note = document.getElementById('noSessionsNote');
-    tbody.innerHTML = '';
+    const fixedBody = document.getElementById('archiveFixedBody');
+    const scrollableBody = document.getElementById('archiveScrollableBody');
+    if (!fixedBody || !scrollableBody) return;
+
+    fixedBody.innerHTML = '';
+    scrollableBody.innerHTML = '';
+
     const ids = Object.keys(sessions);
     if (ids.length === 0) {
-      note.style.display = 'block';
+      document.getElementById('noSessionsNote').style.display = 'block';
       return;
     }
-    note.style.display = 'none';
+    document.getElementById('noSessionsNote').style.display = 'none';
 
     ids.forEach(id => {
       const s = sessions[id];
-      const row = tbody.insertRow();
-      row.insertCell(0).textContent = s.name;
-      row.insertCell(1).textContent = new Date(s.createdAt).toLocaleString('ru-RU');
-      row.insertCell(2).textContent = s.players.length;
-      row.insertCell(3).textContent = s.transactions.length;
+      const fixedRow = fixedBody.insertRow();
+      fixedRow.insertCell(0).textContent = s.name;
+
+      const scrollRow = scrollableBody.insertRow();
+      scrollRow.insertCell(0).textContent = new Date(s.createdAt).toLocaleString('ru-RU');
+      scrollRow.insertCell(1).textContent = s.players.length;
+      scrollRow.insertCell(2).textContent = s.transactions.length;
       
-      const actions = row.insertCell(4);
+      const actions = scrollRow.insertCell(3);
       if (id === currentSessionId) {
         actions.innerHTML = '<em>Текущая</em>';
       } else if (s.status === 'completed') {
@@ -1304,9 +1381,11 @@
         actions.appendChild(delBtn);
       }
     });
+
+    syncScroll('archiveWrapper');
   }
 
-  // === МОДАЛЬНОЕ ОКНО ДЛЯ ОПЕРАЦИИ ИЗ ТАБЛИЦЫ ===
+  // === МОДАЛЬНОЕ ОКНО ===
   function openPlayerOperationModal(playerName) {
     currentPlayerForModal = playerName;
     document.getElementById('modalOperationType').value = 'buy_in';

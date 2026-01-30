@@ -277,6 +277,12 @@
     .player-checkbox:hover {
       background: #f0f0f0;
     }
+
+    /* === ВЫРАВНИВАНИЕ КНОПОК В СТОЛБЦЕ ДЕЙСТВИЕ === */
+    #summaryTable td:nth-child(5),
+    #summaryTable th:nth-child(5) {
+      text-align: left;
+    }
   </style>
 </head>
 <body>
@@ -460,6 +466,9 @@
     <div style="margin:10px 0;">
       <label>Сумма:</label>
       <input type="number" id="modalAmount" placeholder="Сумма" step="any" style="width:100%; padding:6px; margin-top:5px;" />
+      <select id="modalAmountQuickSelect" style="width:100%; margin-top:5px; padding:6px;">
+        <option value="">— Быстрый выбор —</option>
+      </select>
     </div>
     <button onclick="addPlayerOperation()" style="margin-right:10px;">Добавить</button>
     <button onclick="closePlayerOperationModal()">Отмена</button>
@@ -473,6 +482,7 @@
   let isListMode = false;
   let selectedPlayers = [];
   let currentPlayerForModal = null;
+  let sortByResult = false; // false = по алфавиту, true = по результату
 
   // Проверка доступности localStorage
   function canUseLocalStorage() {
@@ -500,6 +510,7 @@
       sessions = {};
       currentSessionId = null;
       selectedPlayers = [];
+      sortByResult = false;
       return;
     }
     try {
@@ -508,10 +519,12 @@
       sessions = s ? JSON.parse(s) : {};
       currentSessionId = sessions[id] ? id : null;
       selectedPlayers = [];
+      sortByResult = false;
     } catch (e) {
       sessions = {};
       currentSessionId = null;
       selectedPlayers = [];
+      sortByResult = false;
     }
   }
 
@@ -610,6 +623,7 @@
 
     session.players.push(...newPlayers);
     saveToStorage();
+    sortByResult = false;
     renderSummary();
     updatePlayerSelect();
 
@@ -630,6 +644,7 @@
     }
     session.players = session.players.filter(p => p !== name);
     saveToStorage();
+    sortByResult = false;
     renderSummary();
     updatePlayerSelect();
   }
@@ -729,25 +744,27 @@
 
   // === ГЕНЕРАЦИЯ БЫСТРОГО ВЫБОРА СУММ ===
   function updateAmountQuickSelect() {
-    const type = document.getElementById('operationType').value;
     const select = document.getElementById('amountQuickSelect');
     select.innerHTML = '<option value="">— Быстрый выбор —</option>';
+    const amounts = [500, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 10000, 15000, 20000];
+    amounts.forEach(amount => {
+      const opt = document.createElement('option');
+      opt.value = amount;
+      opt.textContent = amount;
+      select.appendChild(opt);
+    });
+  }
 
-    if (type === 'buy_in') {
-      for (let i = 500; i <= 20000; i += 500) {
-        const opt = document.createElement('option');
-        opt.value = i;
-        opt.textContent = i;
-        select.appendChild(opt);
-      }
-    } else if (type === 'cash_out') {
-      for (let i = 1000; i <= 30000; i += 100) {
-        const opt = document.createElement('option');
-        opt.value = i;
-        opt.textContent = i;
-        select.appendChild(opt);
-      }
-    }
+  function updateModalAmountQuickSelect() {
+    const select = document.getElementById('modalAmountQuickSelect');
+    select.innerHTML = '<option value="">— Быстрый выбор —</option>';
+    const amounts = [500, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 10000, 15000, 20000];
+    amounts.forEach(amount => {
+      const opt = document.createElement('option');
+      opt.value = amount;
+      opt.textContent = amount;
+      select.appendChild(opt);
+    });
   }
 
   // === ТРАНЗАКЦИИ ===
@@ -806,6 +823,7 @@
     }
 
     saveToStorage();
+    sortByResult = false;
     renderTransactions();
     renderSummary();
 
@@ -942,10 +960,16 @@
       result: summary[name].cashOut - summary[name].buyIn
     }));
 
+    let sortedList = [...list];
+    if (sortByResult) {
+      sortedList.sort((a, b) => b.result - a.result);
+    } else {
+      sortedList.sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    }
+
     const tbody = document.getElementById('summaryList');
     tbody.innerHTML = '';
-    list.sort((a, b) => b.result - a.result);
-    list.forEach(p => {
+    sortedList.forEach(p => {
       const status = getPlayerResultStatus(p.name, session.transactions);
       const row = tbody.insertRow();
       row.insertCell(0).textContent = p.name;
@@ -965,7 +989,19 @@
       }
 
       const actionCell = row.insertCell(4);
+      actionCell.style.textAlign = 'left';
+
+      const hasTransactions = session.transactions.some(t => t.player === p.name);
+
       if (!isCompleted) {
+        if (!hasTransactions) {
+          const delBtn = document.createElement('button');
+          delBtn.textContent = 'Удалить';
+          delBtn.onclick = () => removePlayer(p.name);
+          actionCell.appendChild(delBtn);
+          actionCell.appendChild(document.createTextNode(' '));
+        }
+
         const opBtn = document.createElement('button');
         opBtn.textContent = '+ операция';
         opBtn.onclick = () => openPlayerOperationModal(p.name);
@@ -1023,6 +1059,9 @@
 
     session.settlements = { transfers, isBalanced: true };
     saveToStorage();
+
+    sortByResult = true;
+    renderSummary();
 
     const box = document.getElementById('resultBox');
     if (transfers.length === 0) {
@@ -1121,6 +1160,7 @@
       session.transactions = [];
       delete session.settlements;
       saveToStorage();
+      sortByResult = false;
       renderTransactions();
       renderSummary();
       updatePlayerSelect();
@@ -1267,11 +1307,17 @@
   // === МОДАЛЬНОЕ ОКНО ДЛЯ ОПЕРАЦИИ ИЗ ТАБЛИЦЫ ===
   function openPlayerOperationModal(playerName) {
     currentPlayerForModal = playerName;
+    document.getElementById('modalOperationType').value = 'buy_in';
+    document.getElementById('modalAmount').value = '';
+    document.getElementById('modalAmountQuickSelect').value = '';
+    updateModalAmountQuickSelect();
     document.getElementById('playerOperationModal').style.display = 'block';
   }
 
   function closePlayerOperationModal() {
     document.getElementById('playerOperationModal').style.display = 'none';
+    document.getElementById('modalAmount').value = '';
+    document.getElementById('modalAmountQuickSelect').value = '';
     currentPlayerForModal = null;
   }
 
@@ -1280,7 +1326,16 @@
     
     const type = document.getElementById('modalOperationType').value;
     const amountRaw = document.getElementById('modalAmount').value;
-    const amount = parseFloat(amountRaw);
+    const quickVal = document.getElementById('modalAmountQuickSelect').value;
+    let amount;
+    if (amountRaw !== '') {
+      amount = parseFloat(amountRaw);
+    } else if (quickVal !== '') {
+      amount = parseFloat(quickVal);
+    } else {
+      alert('Введите сумму или выберите из списка');
+      return;
+    }
 
     if (isNaN(amount)) {
       alert('Введите корректную сумму');
@@ -1315,6 +1370,7 @@
     });
 
     saveToStorage();
+    sortByResult = false;
     renderTransactions();
     renderSummary();
     closePlayerOperationModal();

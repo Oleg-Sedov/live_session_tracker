@@ -222,6 +222,67 @@
       border-style: solid;
       border-color: #555 transparent transparent transparent;
     }
+
+    /* === МУЛЬТИВЫБОР ИГРОКОВ === */
+    .multiselect-container {
+      position: relative;
+      display: inline-block;
+      width: 150px;
+      vertical-align: top;
+    }
+    .multiselect-header {
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      background: white;
+      cursor: pointer;
+      border-radius: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .multiselect-header:hover {
+      border-color: #999;
+    }
+    .arrow {
+      font-size: 10px;
+      transition: transform 0.2s;
+    }
+    .multiselect-options {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: white;
+      border: 1px solid #ccc;
+      border-top: none;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 10;
+      border-radius: 0 0 4px 4px;
+      display: none;
+    }
+    .multiselect-controls {
+      padding: 6px;
+      border-bottom: 1px solid #eee;
+      background: #f9f9f9;
+    }
+    .multiselect-controls button {
+      padding: 4px 8px;
+      margin-right: 5px;
+      font-size: 12px;
+    }
+    .player-checkbox {
+      display: flex;
+      align-items: center;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+    .player-checkbox input {
+      margin-right: 8px;
+    }
+    .player-checkbox:hover {
+      background: #f0f0f0;
+    }
   </style>
 </head>
 <body>
@@ -264,9 +325,21 @@
     <!-- Добавление операции -->
     <h2>Добавить операцию</h2>
     <div>
-      <select id="playerSelect" multiple size="5" style="width: 150px; height: auto;">
-        <option value="">— Выберите игроков —</option>
-      </select>
+      <!-- Компактный мультивыбор -->
+      <div class="multiselect-container" id="playerMultiselect">
+        <div class="multiselect-header">
+          <span id="playerSelectText">Выберите игроков</span>
+          <span class="arrow">▼</span>
+        </div>
+        <div class="multiselect-options" id="playerOptions">
+          <div class="multiselect-controls">
+            <button type="button" onclick="toggleAllPlayers(true)">Выбрать всех</button>
+            <button type="button" onclick="toggleAllPlayers(false)">Снять всех</button>
+          </div>
+          <div id="playerCheckboxes"></div>
+        </div>
+      </div>
+
       <select id="operationType">
         <option value="buy_in">Бай-ин</option>
         <option value="cash_out">Кэш-аут</option>
@@ -374,6 +447,7 @@
   let currentSessionId = null;
   let sessions = {};
   let isListMode = false;
+  let selectedPlayers = [];
 
   // Проверка доступности localStorage
   function canUseLocalStorage() {
@@ -400,6 +474,7 @@
     if (!canUseLocalStorage()) {
       sessions = {};
       currentSessionId = null;
+      selectedPlayers = [];
       return;
     }
     try {
@@ -407,9 +482,11 @@
       const id = localStorage.getItem('currentSessionId');
       sessions = s ? JSON.parse(s) : {};
       currentSessionId = sessions[id] ? id : null;
+      selectedPlayers = [];
     } catch (e) {
       sessions = {};
       currentSessionId = null;
+      selectedPlayers = [];
     }
   }
 
@@ -532,45 +609,75 @@
     updatePlayerSelect();
   }
 
-  // === ОБНОВЛЕНИЕ СПИСКА ИГРОКОВ С МНОЖЕСТВЕННЫМ ВЫБОРОМ ===
+  // === МУЛЬТИВЫБОР ИГРОКОВ ===
   function updatePlayerSelect() {
     if (!currentSessionId) return;
-    const select = document.getElementById('playerSelect');
     const session = sessions[currentSessionId];
+    const container = document.getElementById('playerCheckboxes');
+    
+    // Фильтруем только существующих игроков
+    selectedPlayers = selectedPlayers.filter(p => session.players.includes(p));
+    container.innerHTML = '';
 
-    // Сохраняем текущий выбор
-    const selected = Array.from(select.selectedOptions).map(opt => opt.value);
-
-    select.innerHTML = '';
-
-    // Опция "Выбрать всех"
-    const allOption = document.createElement('option');
-    allOption.value = '__ALL__';
-    allOption.textContent = 'Выбрать всех';
-    select.appendChild(allOption);
-
-    // Игроки
     session.players.forEach(name => {
-      const opt = document.createElement('option');
-      opt.value = name;
-      opt.textContent = name;
-      if (selected.includes(name)) opt.selected = true;
-      select.appendChild(opt);
-    });
-
-    // Обработчик клика по "Выбрать всех"
-    select.addEventListener('click', function(e) {
-      if (e.target.value === '__ALL__') {
-        e.target.selected = false; // снимаем выделение с "всех"
-        for (let i = 1; i < select.options.length; i++) {
-          select.options[i].selected = true;
+      const div = document.createElement('div');
+      div.className = 'player-checkbox';
+      div.innerHTML = `
+        <input type="checkbox" id="chk_${name}" value="${name}" ${selectedPlayers.includes(name) ? 'checked' : ''}>
+        <label for="chk_${name}">${name}</label>
+      `;
+      div.querySelector('input').addEventListener('change', function() {
+        if (this.checked) {
+          if (!selectedPlayers.includes(name)) selectedPlayers.push(name);
+        } else {
+          selectedPlayers = selectedPlayers.filter(p => p !== name);
         }
-      }
+        updatePlayerSelectText();
+      });
+      container.appendChild(div);
     });
 
-    // Отключаем, если нет игроков
-    select.disabled = session.players.length === 0;
+    updatePlayerSelectText();
   }
+
+  function updatePlayerSelectText() {
+    const textEl = document.getElementById('playerSelectText');
+    if (selectedPlayers.length === 0) {
+      textEl.textContent = 'Выберите игроков';
+    } else if (selectedPlayers.length === 1) {
+      textEl.textContent = selectedPlayers[0];
+    } else {
+      textEl.textContent = `${selectedPlayers[0]} +${selectedPlayers.length - 1}`;
+    }
+  }
+
+  function toggleAllPlayers(selectAll) {
+    const session = sessions[currentSessionId];
+    if (!session) return;
+    
+    if (selectAll) {
+      selectedPlayers = [...session.players];
+    } else {
+      selectedPlayers = [];
+    }
+    
+    updatePlayerSelect();
+  }
+
+  // Закрытие выпадающего списка при клике вне
+  document.addEventListener('click', function(e) {
+    const multiselect = document.getElementById('playerMultiselect');
+    if (!multiselect.contains(e.target)) {
+      document.getElementById('playerOptions').style.display = 'none';
+    }
+  });
+
+  // Переключение выпадающего списка
+  document.getElementById('playerMultiselect').addEventListener('click', function(e) {
+    e.stopPropagation();
+    const options = document.getElementById('playerOptions');
+    options.style.display = options.style.display === 'block' ? 'none' : 'block';
+  });
 
   // === ГЕНЕРАЦИЯ БЫСТРОГО ВЫБОРА СУММ ===
   function updateAmountQuickSelect() {
@@ -598,15 +705,9 @@
   // === ТРАНЗАКЦИИ С МНОЖЕСТВЕННЫМ ВЫБОРОМ ===
   function addTransaction() {
     if (!currentSessionId) return;
-    const select = document.getElementById('playerSelect');
     const type = document.getElementById('operationType').value;
     const amountInputVal = document.getElementById('amountInput').value.trim();
     const quickSelectVal = document.getElementById('amountQuickSelect').value;
-
-    // Получаем выбранных игроков (игнорируем пустые и "__ALL__")
-    const selectedPlayers = Array.from(select.selectedOptions)
-      .map(opt => opt.value)
-      .filter(val => val && val !== '__ALL__');
 
     if (selectedPlayers.length === 0) {
       alert('Выберите хотя бы одного игрока');
@@ -1003,7 +1104,6 @@
       'players-section',
       'addPlayersBtn',
       'toggleInputModeBtn',
-      'playerSelect',
       'operationType',
       'amountInput',
       'amountQuickSelect',
@@ -1037,6 +1137,8 @@
       document.getElementById('exportBtn').disabled = true;
       isListMode = false;
       document.getElementById('toggleInputModeBtn').textContent = 'Добавить списком';
+      selectedPlayers = [];
+      updatePlayerSelectText();
     }
 
     renderSessionsTable();

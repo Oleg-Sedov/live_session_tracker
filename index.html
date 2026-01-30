@@ -40,6 +40,9 @@
       padding: 6px;
       margin: 4px;
       width: 120px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
     }
     button {
       padding: 8px 12px;
@@ -231,7 +234,7 @@
       vertical-align: top;
     }
     .multiselect-header {
-      padding: 6px 10px;
+      padding: 6px;
       border: 1px solid #ccc;
       background: white;
       cursor: pointer;
@@ -239,6 +242,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      font-size: 14px;
     }
     .multiselect-header:hover {
       border-color: #999;
@@ -260,16 +264,6 @@
       z-index: 10;
       border-radius: 0 0 4px 4px;
       display: none;
-    }
-    .multiselect-controls {
-      padding: 6px;
-      border-bottom: 1px solid #eee;
-      background: #f9f9f9;
-    }
-    .multiselect-controls button {
-      padding: 4px 8px;
-      margin-right: 5px;
-      font-size: 12px;
     }
     .player-checkbox {
       display: flex;
@@ -300,7 +294,7 @@
     </a>
   </div>
 
-  <!-- Диалог сброса (перемещён сюда) -->
+  <!-- Диалог сброса -->
   <div id="resetDialog" style="display:none; margin:15px 0; padding:15px; background:#fff3cd; border:1px solid #ffeaa7; border-radius:6px;">
     <p><strong>Вы уверены, что хотите сбросить текущую сессию?</strong></p>
     <p>Введите слово <code>сбросить</code> для подтверждения:</p>
@@ -309,7 +303,7 @@
     <button onclick="hideResetDialog()">Отмена</button>
   </div>
 
-  <!-- Основной контент (только если есть сессия) -->
+  <!-- Основной контент -->
   <div id="mainContent" style="display:none;">
     
     <!-- Управление игроками -->
@@ -325,16 +319,15 @@
     <!-- Добавление операции -->
     <h2>Добавить операцию</h2>
     <div>
-      <!-- Компактный мультивыбор -->
       <div class="multiselect-container" id="playerMultiselect">
         <div class="multiselect-header">
           <span id="playerSelectText">Выберите игроков</span>
           <span class="arrow">▼</span>
         </div>
         <div class="multiselect-options" id="playerOptions">
-          <div class="multiselect-controls">
-            <button type="button" onclick="toggleAllPlayers(true)">Выбрать всех</button>
-            <button type="button" onclick="toggleAllPlayers(false)">Снять всех</button>
+          <div class="player-checkbox select-all">
+            <input type="checkbox" id="chk_select_all">
+            <label for="chk_select_all">Выбрать всех</label>
           </div>
           <div id="playerCheckboxes"></div>
         </div>
@@ -348,7 +341,6 @@
       <input type="number" id="amountInput" placeholder="Сумма" step="any" />
       <select id="amountQuickSelect">
         <option value="">— Быстрый выбор —</option>
-        <!-- Опции генерируются динамически -->
       </select>
       
       <button onclick="addTransaction()">Добавить</button>
@@ -364,7 +356,13 @@
           <div class="table-scroll-wrapper">
             <table id="transactionsTable">
               <thead>
-                <tr><th>Игрок</th><th>Тип</th><th>Сумма</th><th>Действие</th></tr>
+                <tr>
+                  <th>Время</th>
+                  <th>Игрок</th>
+                  <th>Тип</th>
+                  <th>Сумма</th>
+                  <th>Действие</th>
+                </tr>
               </thead>
               <tbody id="transactionsList"></tbody>
             </table>
@@ -373,17 +371,23 @@
       </div>
     </div>
 
-    <!-- Сворачиваемый блок итогов -->
+    <!-- Сворачиваемый блок списка игроков -->
     <div class="collapsible-section">
       <h2 class="collapsible-header" onclick="toggleSection('summary')">
-        <span class="toggle-icon">+</span> Итоги по игрокам
+        <span class="toggle-icon">+</span> Список игроков
       </h2>
       <div id="summaryContent" class="collapsible-content collapsed">
         <div class="table-scroll-container">
           <div class="table-scroll-wrapper">
             <table id="summaryTable">
               <thead>
-                <tr><th>Игрок</th><th>Σ Бай-ин</th><th>Σ Кэш-аут</th><th>Результат</th><th>Действие</th></tr>
+                <tr>
+                  <th>Игрок</th>
+                  <th>Σ Бай-ин</th>
+                  <th>Σ Кэш-аут</th>
+                  <th>Результат</th>
+                  <th>Действие</th>
+                </tr>
               </thead>
               <tbody id="summaryList"></tbody>
             </table>
@@ -442,12 +446,33 @@
   </div>
 </div>
 
+<!-- Модальное окно для операции из таблицы -->
+<div id="playerOperationModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:100;">
+  <div style="background:white; margin:100px auto; padding:20px; max-width:400px; border-radius:8px;">
+    <h3>Добавить операцию</h3>
+    <div style="margin:10px 0;">
+      <label>Тип:</label>
+      <select id="modalOperationType" style="width:100%; padding:6px; margin-top:5px;">
+        <option value="buy_in">Бай-ин</option>
+        <option value="cash_out">Кэш-аут</option>
+      </select>
+    </div>
+    <div style="margin:10px 0;">
+      <label>Сумма:</label>
+      <input type="number" id="modalAmount" placeholder="Сумма" step="any" style="width:100%; padding:6px; margin-top:5px;" />
+    </div>
+    <button onclick="addPlayerOperation()" style="margin-right:10px;">Добавить</button>
+    <button onclick="closePlayerOperationModal()">Отмена</button>
+  </div>
+</div>
+
 <script>
   // === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ===
   let currentSessionId = null;
   let sessions = {};
   let isListMode = false;
   let selectedPlayers = [];
+  let currentPlayerForModal = null;
 
   // Проверка доступности localStorage
   function canUseLocalStorage() {
@@ -615,17 +640,27 @@
     const session = sessions[currentSessionId];
     const container = document.getElementById('playerCheckboxes');
     
-    // Фильтруем только существующих игроков
     selectedPlayers = selectedPlayers.filter(p => session.players.includes(p));
     container.innerHTML = '';
+
+    const allSelected = session.players.length > 0 && 
+                        session.players.every(p => selectedPlayers.includes(p));
+
+    const selectAllCheckbox = document.getElementById('chk_select_all');
+    if (selectAllCheckbox) {
+      selectAllCheckbox.checked = allSelected;
+    }
 
     session.players.forEach(name => {
       const div = document.createElement('div');
       div.className = 'player-checkbox';
+      const isChecked = selectedPlayers.includes(name);
       div.innerHTML = `
-        <input type="checkbox" id="chk_${name}" value="${name}" ${selectedPlayers.includes(name) ? 'checked' : ''}>
+        <input type="checkbox" id="chk_${name}" value="${name}" ${isChecked ? 'checked' : ''}>
         <label for="chk_${name}">${name}</label>
       `;
+      container.appendChild(div);
+
       div.querySelector('input').addEventListener('change', function() {
         if (this.checked) {
           if (!selectedPlayers.includes(name)) selectedPlayers.push(name);
@@ -633,11 +668,23 @@
           selectedPlayers = selectedPlayers.filter(p => p !== name);
         }
         updatePlayerSelectText();
+        updateSelectAllCheckbox();
       });
-      container.appendChild(div);
     });
 
     updatePlayerSelectText();
+  }
+
+  function updateSelectAllCheckbox() {
+    const session = sessions[currentSessionId];
+    if (!session) return;
+
+    const allSelected = session.players.length > 0 && 
+                        session.players.every(p => selectedPlayers.includes(p));
+    const selectAllCheckbox = document.getElementById('chk_select_all');
+    if (selectAllCheckbox) {
+      selectAllCheckbox.checked = allSelected;
+    }
   }
 
   function updatePlayerSelectText() {
@@ -651,20 +698,22 @@
     }
   }
 
-  function toggleAllPlayers(selectAll) {
-    const session = sessions[currentSessionId];
-    if (!session) return;
-    
-    if (selectAll) {
-      selectedPlayers = [...session.players];
-    } else {
-      selectedPlayers = [];
-    }
-    
-    updatePlayerSelect();
-  }
+  // Обработчик "Выбрать всех"
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('chk_select_all').onchange = function() {
+      const session = sessions[currentSessionId];
+      if (!session) return;
 
-  // Закрытие выпадающего списка при клике вне
+      if (this.checked) {
+        selectedPlayers = [...session.players];
+      } else {
+        selectedPlayers = [];
+      }
+      updatePlayerSelect();
+    };
+  });
+
+  // Закрытие выпадающего списка только при клике вне
   document.addEventListener('click', function(e) {
     const multiselect = document.getElementById('playerMultiselect');
     if (!multiselect.contains(e.target)) {
@@ -672,7 +721,6 @@
     }
   });
 
-  // Переключение выпадающего списка
   document.getElementById('playerMultiselect').addEventListener('click', function(e) {
     e.stopPropagation();
     const options = document.getElementById('playerOptions');
@@ -702,7 +750,7 @@
     }
   }
 
-  // === ТРАНЗАКЦИИ С МНОЖЕСТВЕННЫМ ВЫБОРОМ ===
+  // === ТРАНЗАКЦИИ ===
   function addTransaction() {
     if (!currentSessionId) return;
     const type = document.getElementById('operationType').value;
@@ -741,7 +789,6 @@
         alert('Кэш-аут не может быть отрицательным');
         return;
       }
-      // Проверяем каждого игрока на наличие бай-ина
       for (const playerName of selectedPlayers) {
         const totalBuyIn = session.transactions
           .filter(t => t.player === playerName && t.type === 'buy_in')
@@ -753,19 +800,24 @@
       }
     }
 
-    // Добавляем транзакцию для каждого игрока
+    const timestamp = new Date().toISOString();
     for (const playerName of selectedPlayers) {
-      session.transactions.push({ player: playerName, type, amount });
+      session.transactions.push({ player: playerName, type, amount, timestamp });
     }
 
     saveToStorage();
     renderTransactions();
     renderSummary();
+
+    // СБРОС ПОЛЕЙ
+    selectedPlayers = [];
+    updatePlayerSelectText();
+    document.getElementById('operationType').value = 'buy_in';
     document.getElementById('amountInput').value = '';
     document.getElementById('amountQuickSelect').value = '';
   }
 
-  // === ИСПРАВЛЕНА: безопасный рендер транзакций ===
+  // === РЕНДЕР ТРАНЗАКЦИЙ ===
   function renderTransactions() {
     if (!currentSessionId) return;
     
@@ -777,11 +829,13 @@
     
     session.transactions.forEach((t, i) => {
       const row = tbody.insertRow();
-      row.insertCell(0).textContent = t.player;
-      row.insertCell(1).textContent = t.type === 'buy_in' ? 'Бай-ин' : 'Кэш-аут';
-      row.insertCell(2).textContent = parseFloat(t.amount.toFixed(2));
+      const timeStr = new Date(t.timestamp).toLocaleTimeString('ru-RU');
+      row.insertCell(0).textContent = timeStr;
+      row.insertCell(1).textContent = t.player;
+      row.insertCell(2).textContent = t.type === 'buy_in' ? 'Бай-ин' : 'Кэш-аут';
+      row.insertCell(3).textContent = parseFloat(t.amount.toFixed(2));
       
-      const cell = row.insertCell(3);
+      const cell = row.insertCell(4);
       if (!isCompleted) {
         const btn = document.createElement('button');
         btn.textContent = 'Удалить';
@@ -869,7 +923,7 @@
     return settlementStatus.canCalculate;
   }
 
-  // === ИСПРАВЛЕНА: безопасный рендер итогов ===
+  // === РЕНДЕР СПИСКА ИГРОКОВ ===
   function renderSummary() {
     if (!currentSessionId) return;
     const session = sessions[currentSessionId];
@@ -911,11 +965,11 @@
       }
 
       const actionCell = row.insertCell(4);
-      if (!isCompleted && summary[p.name].buyIn === 0 && summary[p.name].cashOut === 0) {
-        const delBtn = document.createElement('button');
-        delBtn.textContent = 'Удалить';
-        delBtn.onclick = () => removePlayer(p.name);
-        actionCell.appendChild(delBtn);
+      if (!isCompleted) {
+        const opBtn = document.createElement('button');
+        opBtn.textContent = '+ операция';
+        opBtn.onclick = () => openPlayerOperationModal(p.name);
+        actionCell.appendChild(opBtn);
       } else {
         actionCell.textContent = '—';
       }
@@ -954,7 +1008,6 @@
       else if (data.net < -0.01) debtors.push({ name, amount: -data.net });
     });
 
-    // ЖАДНЫЙ АЛГОРИТМ
     const transfers = [];
     let d = 0, c = 0;
     while (d < debtors.length && c < creditors.length) {
@@ -996,12 +1049,13 @@
     const wb = XLSX.utils.book_new();
 
     const dataSheet = session.transactions.map(t => [
+      new Date(t.timestamp).toLocaleString('ru-RU'),
       t.player,
       t.type === 'buy_in' ? t.amount : '',
       t.type === 'cash_out' ? t.amount : ''
     ]);
     const ws1 = XLSX.utils.aoa_to_sheet([
-      ['Игрок', 'Бай-ин', 'Кэш-аут'],
+      ['Время', 'Игрок', 'Бай-ин', 'Кэш-аут'],
       ...dataSheet
     ]);
     XLSX.utils.book_append_sheet(wb, ws1, 'Транзакции');
@@ -1210,6 +1264,62 @@
     });
   }
 
+  // === МОДАЛЬНОЕ ОКНО ДЛЯ ОПЕРАЦИИ ИЗ ТАБЛИЦЫ ===
+  function openPlayerOperationModal(playerName) {
+    currentPlayerForModal = playerName;
+    document.getElementById('playerOperationModal').style.display = 'block';
+  }
+
+  function closePlayerOperationModal() {
+    document.getElementById('playerOperationModal').style.display = 'none';
+    currentPlayerForModal = null;
+  }
+
+  function addPlayerOperation() {
+    if (!currentPlayerForModal || !currentSessionId) return;
+    
+    const type = document.getElementById('modalOperationType').value;
+    const amountRaw = document.getElementById('modalAmount').value;
+    const amount = parseFloat(amountRaw);
+
+    if (isNaN(amount)) {
+      alert('Введите корректную сумму');
+      return;
+    }
+
+    if (type === 'buy_in' && amount <= 0) {
+      alert('Бай-ин должен быть положительным');
+      return;
+    }
+    if (type === 'cash_out' && amount < 0) {
+      alert('Кэш-аут не может быть отрицательным');
+      return;
+    }
+
+    const session = sessions[currentSessionId];
+    if (type === 'cash_out') {
+      const totalBuyIn = session.transactions
+        .filter(t => t.player === currentPlayerForModal && t.type === 'buy_in')
+        .reduce((sum, t) => sum + t.amount, 0);
+      if (totalBuyIn <= 0) {
+        alert(`Нельзя сделать кэш-аут для ${currentPlayerForModal} без бай-ина`);
+        return;
+      }
+    }
+
+    session.transactions.push({
+      player: currentPlayerForModal,
+      type,
+      amount,
+      timestamp: new Date().toISOString()
+    });
+
+    saveToStorage();
+    renderTransactions();
+    renderSummary();
+    closePlayerOperationModal();
+  }
+
   // === ИНИЦИАЛИЗАЦИЯ ===
   function init() {
     loadFromStorage();
@@ -1219,7 +1329,6 @@
     updateAmountQuickSelect();
   }
 
-  // Обработчик переключения типа операции
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('operationType').addEventListener('change', updateAmountQuickSelect);
 

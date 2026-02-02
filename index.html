@@ -30,7 +30,7 @@
     }
     th, td {
       border: 1px solid #ddd;
-      padding: 110px;
+      padding: 10px; /* ← исправлено */
       text-align: center;
     }
     th {
@@ -292,24 +292,25 @@
       color: #2c3e50;
     }
 
-    /* === СТИЛИ ДЛЯ КАРТОЧЕК (МОБИЛЬНЫЕ) === */
-    .player-card {
+    /* === СТИЛИ ДЛЯ КАРТОЧЕК === */
+    .player-card,
+    .transaction-card {
       border: 1px solid #ddd;
       border-radius: 8px;
       padding: 12px;
       margin-bottom: 10px;
       background-color: #f9f9f9;
     }
-    .player-card div {
+    .player-card div,
+    .transaction-card div {
       margin: 4px 0;
     }
+
+    /* === АДАПТАЦИЯ ДЛЯ МОБИЛЬНЫХ === */
     @media (max-width: 767px) {
       button, .archive-btn, input[type="number"], select, .multiselect-header {
         min-height: 44px;
         font-size: 16px;
-      }
-      .table-scroll-wrapper {
-        max-height: 250px;
       }
     }
   </style>
@@ -387,7 +388,8 @@
         <span class="toggle-icon">+</span> Транзакции
       </h2>
       <div id="transactionsContent" class="collapsible-content collapsed">
-        <div class="table-scroll-container">
+        <!-- Для ПК -->
+        <div id="transactionsTableContainer" class="table-scroll-container">
           <div class="table-scroll-wrapper">
             <table id="transactionsTable">
               <thead>
@@ -401,6 +403,13 @@
               </thead>
               <tbody id="transactionsList"></tbody>
             </table>
+          </div>
+        </div>
+
+        <!-- Для мобильных -->
+        <div id="transactionsCardsContainer" style="display:none; margin-top:10px;">
+          <div class="table-scroll-wrapper">
+            <div id="transactionsCardsInner"></div>
           </div>
         </div>
       </div>
@@ -872,8 +881,22 @@
     document.getElementById('amountQuickSelect').value = '';
   }
 
-  // === РЕНДЕР ТРАНЗАКЦИЙ ===
+  // === РЕНДЕР ТРАНЗАКЦИЙ (ОСНОВНОЙ) ===
   function renderTransactions() {
+    if (!currentSessionId) return;
+    const isMobile = isMobileView();
+    document.getElementById('transactionsTableContainer').style.display = isMobile ? 'none' : 'block';
+    document.getElementById('transactionsCardsContainer').style.display = isMobile ? 'block' : 'none';
+
+    if (isMobile) {
+      renderTransactionsCards();
+    } else {
+      renderTransactionsTable();
+    }
+  }
+
+  // === РЕНДЕР ТАБЛИЦЫ ТРАНЗАКЦИЙ (ПК) ===
+  function renderTransactionsTable() {
     if (!currentSessionId) return;
     
     const session = sessions[currentSessionId];
@@ -905,6 +928,44 @@
       } else {
         cell.textContent = '—';
       }
+    });
+  }
+
+  // === РЕНДЕР КАРТОЧЕК ТРАНЗАКЦИЙ (МОБИЛЬНЫЕ) ===
+  function renderTransactionsCards() {
+    if (!currentSessionId) return;
+    const session = sessions[currentSessionId];
+    const isCompleted = session.status === 'completed';
+    const container = document.getElementById('transactionsCardsInner');
+    container.innerHTML = '';
+
+    session.transactions.forEach((t, i) => {
+      const card = document.createElement('div');
+      card.className = 'transaction-card';
+      const timeStr = new Date(t.timestamp).toLocaleTimeString('ru-RU');
+      const typeText = t.type === 'buy_in' ? 'Бай-ин' : 'Кэш-аут';
+
+      card.innerHTML = `
+        <div><strong>${timeStr}</strong></div>
+        <div>Игрок: ${t.player}</div>
+        <div>Тип: ${typeText}</div>
+        <div>Сумма: ${parseFloat(t.amount.toFixed(2))} ₽</div>
+      `;
+
+      if (!isCompleted) {
+        const delBtn = document.createElement('button');
+        delBtn.textContent = 'Удалить';
+        delBtn.onclick = () => {
+          session.transactions.splice(i, 1);
+          saveToStorage();
+          renderTransactions();
+          renderSummary();
+          updatePlayerSelect();
+        };
+        card.appendChild(delBtn);
+      }
+
+      container.appendChild(card);
     });
   }
 
@@ -978,7 +1039,37 @@
     return settlementStatus.canCalculate;
   }
 
-  // === РЕНДЕР ТАБЛИЦЫ (ПК) ===
+  // === РЕНДЕР СПИСКА ИГРОКОВ (ОСНОВНОЙ) ===
+  function renderSummary() {
+    if (!currentSessionId) return;
+    const session = sessions[currentSessionId];
+
+    // Расчёт банка
+    const bank = Math.round(
+      session.transactions
+        .filter(t => t.type === 'buy_in')
+        .reduce((sum, t) => sum + t.amount, 0)
+    );
+    const cashOutTotal = Math.round(
+      session.transactions
+        .filter(t => t.type === 'cash_out')
+        .reduce((sum, t) => sum + t.amount, 0)
+    );
+    const inGame = bank - cashOutTotal;
+    document.getElementById('bankInfo').innerHTML = `Банк: ${bank} ₽<br>В игре: ${inGame} ₽`;
+
+    const isMobile = isMobileView();
+    document.getElementById('summaryTableContainer').style.display = isMobile ? 'none' : 'block';
+    document.getElementById('summaryCardsContainer').style.display = isMobile ? 'block' : 'none';
+
+    if (isMobile) {
+      renderSummaryCards();
+    } else {
+      renderSummaryTable();
+    }
+  }
+
+  // === РЕНДЕР ТАБЛИЦЫ ИГРОКОВ (ПК) ===
   function renderSummaryTable() {
     if (!currentSessionId) return;
     const session = sessions[currentSessionId];
@@ -1063,7 +1154,7 @@
       (!isCompleted && canFinishSession()) ? 'inline-block' : 'none';
   }
 
-  // === РЕНДЕР КАРТОЧЕК (МОБИЛЬНЫЕ) ===
+  // === РЕНДЕР КАРТОЧЕК ИГРОКОВ (МОБИЛЬНЫЕ) ===
   function renderSummaryCards() {
     if (!currentSessionId) return;
     const session = sessions[currentSessionId];
@@ -1137,37 +1228,6 @@
 
       container.appendChild(card);
     });
-  }
-
-  // === ОСНОВНАЯ ФУНКЦИЯ РЕНДЕРА ===
-  function renderSummary() {
-    if (!currentSessionId) return;
-    const session = sessions[currentSessionId];
-
-    // Расчёт банка
-    const bank = Math.round(
-      session.transactions
-        .filter(t => t.type === 'buy_in')
-        .reduce((sum, t) => sum + t.amount, 0)
-    );
-    const cashOutTotal = Math.round(
-      session.transactions
-        .filter(t => t.type === 'cash_out')
-        .reduce((sum, t) => sum + t.amount, 0)
-    );
-    const inGame = bank - cashOutTotal;
-    document.getElementById('bankInfo').innerHTML = `Банк: ${bank} ₽<br>В игре: ${inGame} ₽`;
-
-    // Переключение между таблицей и карточками
-    const isMobile = isMobileView();
-    document.getElementById('summaryTableContainer').style.display = isMobile ? 'none' : 'block';
-    document.getElementById('summaryCardsContainer').style.display = isMobile ? 'block' : 'none';
-
-    if (isMobile) {
-      renderSummaryCards();
-    } else {
-      renderSummaryTable();
-    }
   }
 
   // === ВЗАИМОРАСЧЁТЫ ===
@@ -1532,6 +1592,7 @@
   // Обработка изменения размера окна
   window.addEventListener('resize', () => {
     if (currentSessionId) {
+      renderTransactions();
       renderSummary();
     }
   });

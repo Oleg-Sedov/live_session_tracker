@@ -30,7 +30,7 @@
     }
     th, td {
       border: 1px solid #ddd;
-      padding: 10px;
+      padding: 110px;
       text-align: center;
     }
     th {
@@ -291,6 +291,27 @@
       font-weight: bold;
       color: #2c3e50;
     }
+
+    /* === СТИЛИ ДЛЯ КАРТОЧЕК (МОБИЛЬНЫЕ) === */
+    .player-card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 10px;
+      background-color: #f9f9f9;
+    }
+    .player-card div {
+      margin: 4px 0;
+    }
+    @media (max-width: 767px) {
+      button, .archive-btn, input[type="number"], select, .multiselect-header {
+        min-height: 44px;
+        font-size: 16px;
+      }
+      .table-scroll-wrapper {
+        max-height: 250px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -394,7 +415,8 @@
         <!-- Информация о банке -->
         <div id="bankInfo"></div>
         
-        <div class="table-scroll-container">
+        <!-- Для ПК -->
+        <div id="summaryTableContainer" class="table-scroll-container">
           <div class="table-scroll-wrapper">
             <table id="summaryTable">
               <thead>
@@ -410,6 +432,9 @@
             </table>
           </div>
         </div>
+
+        <!-- Для мобильных -->
+        <div id="summaryCardsContainer" style="display:none; margin-top:10px;"></div>
       </div>
     </div>
     <div id="balanceWarning" class="error" style="display:none;"></div>
@@ -494,6 +519,10 @@
   let selectedPlayers = [];
   let currentPlayerForModal = null;
   let sortByResult = false;
+
+  function isMobileView() {
+    return window.innerWidth <= 767;
+  }
 
   // Проверка доступности localStorage
   function canUseLocalStorage() {
@@ -949,8 +978,8 @@
     return settlementStatus.canCalculate;
   }
 
-  // === РЕНДЕР СПИСКА ИГРОКОВ ===
-  function renderSummary() {
+  // === РЕНДЕР ТАБЛИЦЫ (ПК) ===
+  function renderSummaryTable() {
     if (!currentSessionId) return;
     const session = sessions[currentSessionId];
     const isCompleted = session.status === 'completed';
@@ -960,26 +989,6 @@
       if (t.type === 'buy_in') summary[t.player].buyIn += t.amount;
       else summary[t.player].cashOut += t.amount;
     });
-
-    // === РАСЧЁТ БАНКА И ДЕНЕГ В ИГРЕ ===
-    const bank = Math.round(
-      session.transactions
-        .filter(t => t.type === 'buy_in')
-        .reduce((sum, t) => sum + t.amount, 0)
-    );
-
-    const cashOutTotal = Math.round(
-      session.transactions
-        .filter(t => t.type === 'cash_out')
-        .reduce((sum, t) => sum + t.amount, 0)
-    );
-
-    const inGame = bank - cashOutTotal;
-
-    // Отображение информации
-    document.getElementById('bankInfo').innerHTML = `
-      Банк: ${bank} ₽&#09;В игре: ${inGame} ₽
-    `;
 
     const list = session.players.map(name => ({
       name,
@@ -1054,7 +1063,114 @@
       (!isCompleted && canFinishSession()) ? 'inline-block' : 'none';
   }
 
-  // === ВЗАИМОРАСЧЁТЫ (ТОЛЬКО ЖАДНЫЙ АЛГОРИТМ) ===
+  // === РЕНДЕР КАРТОЧЕК (МОБИЛЬНЫЕ) ===
+  function renderSummaryCards() {
+    if (!currentSessionId) return;
+    const session = sessions[currentSessionId];
+    const isCompleted = session.status === 'completed';
+    const container = document.getElementById('summaryCardsContainer');
+    container.innerHTML = '';
+
+    const summary = {};
+    session.players.forEach(p => summary[p] = { buyIn: 0, cashOut: 0 });
+    session.transactions.forEach(t => {
+      if (t.type === 'buy_in') summary[t.player].buyIn += t.amount;
+      else summary[t.player].cashOut += t.amount;
+    });
+
+    const list = session.players.map(name => ({
+      name,
+      buyIn: summary[name].buyIn,
+      cashOut: summary[name].cashOut,
+      result: summary[name].cashOut - summary[name].buyIn
+    }));
+
+    let sortedList = [...list];
+    if (sortByResult) {
+      sortedList.sort((a, b) => b.result - a.result);
+    } else {
+      sortedList.sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    }
+
+    sortedList.forEach(p => {
+      const status = getPlayerResultStatus(p.name, session.transactions);
+      const hasTransactions = session.transactions.some(t => t.player === p.name);
+
+      const card = document.createElement('div');
+      card.className = 'player-card';
+
+      let resultText = '—';
+      let resultClass = '';
+      if (status.showResult) {
+        const res = status.result;
+        resultText = parseFloat(res.toFixed(2));
+        if (res > 0.01) resultClass = 'positive';
+        else if (res < -0.01) resultClass = 'negative';
+        else resultClass = 'zero';
+      }
+
+      card.innerHTML = `
+        <div><strong>${p.name}</strong></div>
+        <div>Бай-ин: ${parseFloat(p.buyIn.toFixed(2))} ₽</div>
+        <div>Кэш-аут: ${parseFloat(p.cashOut.toFixed(2))} ₽</div>
+        <div>Результат: <span class="${resultClass}">${resultText}</span> ₽</div>
+      `;
+
+      if (!isCompleted) {
+        const actionDiv = document.createElement('div');
+        actionDiv.style.marginTop = '8px';
+        
+        const opBtn = document.createElement('button');
+        opBtn.textContent = '+ операция';
+        opBtn.onclick = () => openPlayerOperationModal(p.name);
+        actionDiv.appendChild(opBtn);
+
+        if (!hasTransactions) {
+          const delBtn = document.createElement('button');
+          delBtn.textContent = 'Удалить';
+          delBtn.onclick = () => removePlayer(p.name);
+          actionDiv.appendChild(delBtn);
+        }
+
+        card.appendChild(actionDiv);
+      }
+
+      container.appendChild(card);
+    });
+  }
+
+  // === ОСНОВНАЯ ФУНКЦИЯ РЕНДЕРА ===
+  function renderSummary() {
+    if (!currentSessionId) return;
+    const session = sessions[currentSessionId];
+
+    // Расчёт банка
+    const bank = Math.round(
+      session.transactions
+        .filter(t => t.type === 'buy_in')
+        .reduce((sum, t) => sum + t.amount, 0)
+    );
+    const cashOutTotal = Math.round(
+      session.transactions
+        .filter(t => t.type === 'cash_out')
+        .reduce((sum, t) => sum + t.amount, 0)
+    );
+    const inGame = bank - cashOutTotal;
+    document.getElementById('bankInfo').innerHTML = `Банк: ${bank} ₽<br>В игре: ${inGame} ₽`;
+
+    // Переключение между таблицей и карточками
+    const isMobile = isMobileView();
+    document.getElementById('summaryTableContainer').style.display = isMobile ? 'none' : 'block';
+    document.getElementById('summaryCardsContainer').style.display = isMobile ? 'block' : 'none';
+
+    if (isMobile) {
+      renderSummaryCards();
+    } else {
+      renderSummaryTable();
+    }
+  }
+
+  // === ВЗАИМОРАСЧЁТЫ ===
   function calculateSettlements() {
     if (!currentSessionId) return;
     const session = sessions[currentSessionId];
@@ -1332,7 +1448,7 @@
     });
   }
 
-  // === МОДАЛЬНОЕ ОКНО ДЛЯ ОПЕРАЦИИ ИЗ ТАБЛИЦЫ ===
+  // === МОДАЛЬНОЕ ОКНО ===
   function openPlayerOperationModal(playerName) {
     currentPlayerForModal = playerName;
     document.getElementById('modalOperationType').value = 'buy_in';
@@ -1412,6 +1528,13 @@
     updateUI();
     updateAmountQuickSelect();
   }
+
+  // Обработка изменения размера окна
+  window.addEventListener('resize', () => {
+    if (currentSessionId) {
+      renderSummary();
+    }
+  });
 
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('operationType').addEventListener('change', updateAmountQuickSelect);

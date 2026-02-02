@@ -283,6 +283,14 @@
     #summaryTable th:nth-child(5) {
       text-align: left;
     }
+
+    /* === ИНФОРМАЦИЯ О БАНКЕ === */
+    #bankInfo {
+      text-align: left;
+      margin: 10px 0;
+      font-weight: bold;
+      color: #2c3e50;
+    }
   </style>
 </head>
 <body>
@@ -383,6 +391,9 @@
         <span class="toggle-icon">+</span> Список игроков
       </h2>
       <div id="summaryContent" class="collapsible-content collapsed">
+        <!-- Информация о банке -->
+        <div id="bankInfo"></div>
+        
         <div class="table-scroll-container">
           <div class="table-scroll-wrapper">
             <table id="summaryTable">
@@ -482,7 +493,7 @@
   let isListMode = false;
   let selectedPlayers = [];
   let currentPlayerForModal = null;
-  let sortByResult = false; // false = по алфавиту, true = по результату
+  let sortByResult = false;
 
   // Проверка доступности localStorage
   function canUseLocalStorage() {
@@ -713,7 +724,6 @@
     }
   }
 
-  // Обработчик "Выбрать всех"
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('chk_select_all').onchange = function() {
       const session = sessions[currentSessionId];
@@ -728,7 +738,6 @@
     };
   });
 
-  // Закрытие выпадающего списка только при клике вне
   document.addEventListener('click', function(e) {
     const multiselect = document.getElementById('playerMultiselect');
     if (!multiselect.contains(e.target)) {
@@ -827,7 +836,6 @@
     renderTransactions();
     renderSummary();
 
-    // СБРОС ПОЛЕЙ
     selectedPlayers = [];
     updatePlayerSelectText();
     document.getElementById('operationType').value = 'buy_in';
@@ -953,6 +961,27 @@
       else summary[t.player].cashOut += t.amount;
     });
 
+    // === РАСЧЁТ БАНКА И ДЕНЕГ В ИГРЕ ===
+    const bank = Math.round(
+      session.transactions
+        .filter(t => t.type === 'buy_in')
+        .reduce((sum, t) => sum + t.amount, 0)
+    );
+
+    const cashOutTotal = Math.round(
+      session.transactions
+        .filter(t => t.type === 'cash_out')
+        .reduce((sum, t) => sum + t.amount, 0)
+    );
+
+    const inGame = bank - cashOutTotal;
+
+    // Отображение информации
+    document.getElementById('bankInfo').innerHTML = `
+      Банк: ${bank} ₽<br>
+      В игре: ${inGame} ₽
+    `;
+
     const list = session.players.map(name => ({
       name,
       buyIn: summary[name].buyIn,
@@ -994,12 +1023,11 @@
       const hasTransactions = session.transactions.some(t => t.player === p.name);
 
       if (!isCompleted) {
-
         const opBtn = document.createElement('button');
         opBtn.textContent = '+ операция';
         opBtn.onclick = () => openPlayerOperationModal(p.name);
         actionCell.appendChild(opBtn);
-        
+
         if (!hasTransactions) {
           const delBtn = document.createElement('button');
           delBtn.textContent = 'Удалить';
@@ -1007,7 +1035,6 @@
           actionCell.appendChild(delBtn);
           actionCell.appendChild(document.createTextNode(' '));
         }
-
       } else {
         actionCell.textContent = '—';
       }

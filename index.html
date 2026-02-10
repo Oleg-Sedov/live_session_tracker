@@ -30,7 +30,7 @@
     }
     th, td {
       border: 1px solid #ddd;
-      padding: 10px; /* ← исправлено */
+      padding: 10px;
       text-align: center;
     }
     th {
@@ -457,15 +457,14 @@
     <!-- Расчёт взаиморасчётов -->
     <div class="tooltip-container">
       <button 
-        onclick="calculateSettlements()" 
-        id="calcBtn" 
-        disabled 
+        onclick="confirmCalculateSettlements()"
+        id="calcBtn"
+        disabled
         tabindex="0"
       >Рассчитать взаиморасчёты</button>
       <div class="tooltip-text">Расчёт невозможен: не все закончили игру или баланс не сходится</div>
     </div>
     <button onclick="exportToExcel()" id="exportBtn" disabled>Экспорт в Excel</button>
-    <button onclick="finishSession()" id="finishBtn" style="display:none;" class="danger-btn">Завершить сессию</button>
     <button onclick="closeCompletedSession()" id="closeCompletedBtn" style="display:none;">Закрыть</button>
   </div>
 
@@ -1032,23 +1031,16 @@
     };
   }
 
-  // === ПРОВЕРКА ВОЗМОЖНОСТИ ЗАВЕРШЕНИЯ ===
-  function canFinishSession() {
-    if (!currentSessionId) return false;
-    const session = sessions[currentSessionId];
-    
-    if (session.transactions.length === 0) {
-      return true;
-    }
-
-    const settlementStatus = getSettlementStatus();
-    return settlementStatus.canCalculate;
-  }
-
   // === РЕНДЕР СПИСКА ИГРОКОВ (ОСНОВНОЙ) ===
   function renderSummary() {
     if (!currentSessionId) return;
     const session = sessions[currentSessionId];
+    const isCompleted = session.status === 'completed';
+
+    // Если сессия завершена — всегда сортируем по результату
+    if (isCompleted) {
+      sortByResult = true;
+    }
 
     // Расчёт банка
     const bank = Math.round(
@@ -1155,9 +1147,6 @@
     } else {
       balanceWarning.style.display = 'none';
     }
-
-    document.getElementById('finishBtn').style.display = 
-      (!isCompleted && canFinishSession()) ? 'inline-block' : 'none';
   }
 
   // === РЕНДЕР КАРТОЧЕК ИГРОКОВ (МОБИЛЬНЫЕ) ===
@@ -1236,6 +1225,19 @@
     });
   }
 
+  // === ПОДТВЕРЖДЕНИЕ РАСЧЁТА ===
+  function confirmCalculateSettlements() {
+    if (!currentSessionId) return;
+    
+    const confirmed = confirm(
+      'Проведение взаиморасчётов закончит текущую сессию, редактирование станет недоступно. Провести взаиморасчёты?'
+    );
+    
+    if (confirmed) {
+      calculateSettlements();
+    }
+  }
+
   // === ВЗАИМОРАСЧЁТЫ ===
   function calculateSettlements() {
     if (!currentSessionId) return;
@@ -1268,6 +1270,7 @@
     }
 
     session.settlements = { transfers, isBalanced: true };
+    session.status = 'completed'; // ← ЗАВЕРШАЕМ СЕССИЮ
     saveToStorage();
 
     sortByResult = true;
@@ -1287,8 +1290,8 @@
     document.getElementById('exportBtn').disabled = false;
     window.transfersForExport = transfers;
 
-    document.getElementById('finishBtn').style.display = 
-      (canFinishSession()) ? 'inline-block' : 'none';
+    // ← НЕ сбрасываем currentSessionId — остаёмся в сессии
+    updateUI(); // обновит интерфейс под режим "просмотра"
   }
 
   // === ЭКСПОРТ ===
@@ -1330,16 +1333,6 @@
     XLSX.writeFile(wb, `${sessionName}.xlsx`);
   }
 
-  // === ЗАВЕРШЕНИЕ СЕССИИ ===
-  function finishSession() {
-    if (!confirm('Завершить сессию? После этого редактирование будет невозможно.')) return;
-    const session = sessions[currentSessionId];
-    session.status = 'completed';
-    currentSessionId = null;
-    saveToStorage();
-    updateUI();
-  }
-
   // === ЗАКРЫТЬ ПРОСМОТР ЗАВЕРШЁННОЙ СЕССИИ ===
   function closeCompletedSession() {
     currentSessionId = null;
@@ -1376,7 +1369,6 @@
       updatePlayerSelect();
       document.getElementById('resultBox').style.display = 'none';
       document.getElementById('exportBtn').disabled = true;
-      document.getElementById('finishBtn').style.display = 'none';
       hideResetDialog();
     }
   }
@@ -1400,6 +1392,11 @@
     const hasSession = !!currentSessionId;
     const isCompleted = hasSession && sessions[currentSessionId].status === 'completed';
 
+    // Для завершённых сессий — всегда сортируем по результату
+    if (isCompleted) {
+      sortByResult = true;
+    }
+
     document.getElementById('mainContent').style.display = hasSession ? 'block' : 'none';
     document.getElementById('noSessionMessage').style.display = hasSession ? 'none' : 'block';
     document.getElementById('resetBtn').disabled = !hasSession || isCompleted;
@@ -1411,8 +1408,7 @@
       'operationType',
       'amountInput',
       'amountQuickSelect',
-      'calcBtn',
-      'finishBtn'
+      'calcBtn'
     ];
     interactiveIds.forEach(id => {
       const el = document.getElementById(id);

@@ -992,7 +992,7 @@
     return { showResult, result };
   }
 
-  // === СТАТУС РАСЧЁТА ===
+  // === ✅ ИСПРАВЛЕННАЯ ФУНКЦИЯ СТАТУСА РАСЧЁТА ===
   function getSettlementStatus() {
     if (!currentSessionId) return { canCalculate: false, isAllExited: false, total: 0 };
     const session = sessions[currentSessionId];
@@ -1001,6 +1001,7 @@
     let allExited = true;
     for (const player of session.players) {
       const playerTransactions = session.transactions.filter(t => t.player === player);
+      // ✅ Если у игрока нет операций — он не вышел
       if (playerTransactions.length === 0) {
         allExited = false;
         break;
@@ -1021,13 +1022,16 @@
     session.transactions.forEach(t => {
       summary[t.player].net += (t.type === 'buy_in' ? -t.amount : t.amount);
     });
+
     const total = Object.values(summary).reduce((sum, p) => sum + p.net, 0);
-    const isBalanced = Math.abs(total) <= 0.01;
+    // ✅ Исправление для Safari: округляем до 2 знаков
+    const totalRounded = parseFloat(total.toFixed(2));
+    const isBalanced = Math.abs(totalRounded) <= 0.01;
 
     return {
       canCalculate: isBalanced,
       isAllExited: true,
-      total: total
+      total: totalRounded
     };
   }
 
@@ -1064,6 +1068,18 @@
       renderSummaryCards();
     } else {
       renderSummaryTable();
+    }
+
+    // Обновляем состояние кнопки
+    const settlementStatus = getSettlementStatus();
+    document.getElementById('calcBtn').disabled = !settlementStatus.canCalculate;
+
+    const balanceWarning = document.getElementById('balanceWarning');
+    if (settlementStatus.isAllExited && !settlementStatus.canCalculate) {
+      balanceWarning.textContent = `Баланс не сошёлся (${settlementStatus.total.toFixed(2)} ₽), проверьте кэш-аут`;
+      balanceWarning.style.display = 'block';
+    } else {
+      balanceWarning.style.display = 'none';
     }
   }
 
@@ -1136,17 +1152,6 @@
         actionCell.textContent = '—';
       }
     });
-
-    const settlementStatus = getSettlementStatus();
-    document.getElementById('calcBtn').disabled = !settlementStatus.canCalculate;
-
-    const balanceWarning = document.getElementById('balanceWarning');
-    if (settlementStatus.isAllExited && !settlementStatus.canCalculate) {
-      balanceWarning.textContent = `Баланс не сошёлся (${settlementStatus.total.toFixed(2)} ₽), проверьте кэш-аут`;
-      balanceWarning.style.display = 'block';
-    } else {
-      balanceWarning.style.display = 'none';
-    }
   }
 
   // === РЕНДЕР КАРТОЧЕК ИГРОКОВ (МОБИЛЬНЫЕ) ===
@@ -1290,8 +1295,8 @@
     document.getElementById('exportBtn').disabled = false;
     window.transfersForExport = transfers;
 
-    // ← НЕ сбрасываем currentSessionId — остаёмся в сессии
-    updateUI(); // обновит интерфейс под режим "просмотра"
+    // ← Остаёмся в сессии (не сбрасываем currentSessionId)
+    updateUI();
   }
 
   // === ЭКСПОРТ ===
@@ -1392,7 +1397,6 @@
     const hasSession = !!currentSessionId;
     const isCompleted = hasSession && sessions[currentSessionId].status === 'completed';
 
-    // Для завершённых сессий — всегда сортируем по результату
     if (isCompleted) {
       sortByResult = true;
     }

@@ -1179,4 +1179,224 @@
     }
   }
 
-  // === ОБНОВЛЕНИЕ ИН
+  // === ОБНОВЛЕНИЕ ИНТЕРФЕЙСА ===
+  function updateUI() {
+    const hasSession = !!currentSessionId;
+    const isCompleted = hasSession && sessions[currentSessionId].status === 'completed';
+
+    document.getElementById('mainContent').style.display = hasSession ? 'block' : 'none';
+    document.getElementById('noSessionMessage').style.display = hasSession ? 'none' : 'block';
+    document.getElementById('resetBtn').disabled = !hasSession || isCompleted;
+
+    const interactiveIds = [
+      'players-section',
+      'addPlayersBtn',
+      'toggleInputModeBtn',
+      'operationType',
+      'amountInput',
+      'amountQuickSelect',
+      'calcBtn'
+    ];
+    interactiveIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = (hasSession && !isCompleted) ? '' : 'none';
+    });
+
+    document.getElementById('closeCompletedBtn').style.display = 
+      (hasSession && isCompleted) ? 'inline-block' : 'none';
+
+    document.getElementById('exportBtn').disabled = !hasSession;
+
+    if (hasSession) {
+      if (!isCompleted) {
+        updatePlayerSelect();
+        renderTransactions();
+        updateAmountQuickSelect();
+      }
+      renderSummary();
+      if (isCompleted && sessions[currentSessionId].settlements) {
+        showSavedSettlements(sessions[currentSessionId].settlements);
+      } else {
+        document.getElementById('resultBox').style.display = 'none';
+      }
+    } else {
+      document.getElementById('resultBox').style.display = 'none';
+      document.getElementById('exportBtn').disabled = true;
+      isListMode = false;
+      document.getElementById('toggleInputModeBtn').textContent = 'Добавить списком';
+      selectedPlayers = [];
+      updatePlayerSelectText();
+    }
+
+    renderSessionsTable();
+  }
+
+  function showSavedSettlements(saved) {
+    const box = document.getElementById('resultBox');
+    if (!saved.transfers || saved.transfers.length === 0) {
+      box.innerHTML = '';
+      box.style.display = 'none';
+    } else {
+      box.innerHTML = '<ul>' +
+        saved.transfers.map(t => `<li><strong>${t.from}</strong> → <strong>${t.to}</strong>: ${t.amount} ₽</li>`).join('') +
+        '</ul>';
+      box.style.display = 'block';
+    }
+    document.getElementById('exportBtn').disabled = false;
+    window.transfersForExport = saved.transfers;
+  }
+
+  // === РЕНДЕР АРХИВА ===
+  function renderSessionsTable() {
+    const tbody = document.getElementById('sessionsList');
+    const note = document.getElementById('noSessionsNote');
+    tbody.innerHTML = '';
+    const ids = Object.keys(sessions);
+    if (ids.length === 0) {
+      note.style.display = 'block';
+      return;
+    }
+    note.style.display = 'none';
+
+    ids.forEach(id => {
+      const s = sessions[id];
+      const row = tbody.insertRow();
+      row.insertCell(0).textContent = s.name;
+      row.insertCell(1).textContent = new Date(s.createdAt).toLocaleString('ru-RU');
+      row.insertCell(2).textContent = s.players.length;
+      row.insertCell(3).textContent = s.transactions.length;
+      
+      const actions = row.insertCell(4);
+      if (id === currentSessionId) {
+        actions.innerHTML = '<em>Текущая</em>';
+      } else if (s.status === 'completed') {
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'archive-btn view';
+        viewBtn.textContent = 'Просмотреть';
+        viewBtn.onclick = () => switchSession(id);
+        actions.appendChild(viewBtn);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'archive-btn delete';
+        delBtn.textContent = 'Удалить';
+        delBtn.onclick = () => deleteSession(id);
+        actions.appendChild(delBtn);
+      } else {
+        const openBtn = document.createElement('button');
+        openBtn.className = 'archive-btn open';
+        openBtn.textContent = 'Открыть';
+        openBtn.onclick = () => switchSession(id);
+        actions.appendChild(openBtn);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'archive-btn delete';
+        delBtn.textContent = 'Удалить';
+        delBtn.onclick = () => deleteSession(id);
+        actions.appendChild(delBtn);
+      }
+    });
+  }
+
+  // === МОДАЛЬНОЕ ОКНО ===
+  function openPlayerOperationModal(playerName) {
+    currentPlayerForModal = playerName;
+    document.getElementById('modalOperationType').value = 'buy_in';
+    document.getElementById('modalAmount').value = '';
+    document.getElementById('modalAmountQuickSelect').value = '';
+    updateModalAmountQuickSelect();
+    document.getElementById('playerOperationModal').style.display = 'block';
+  }
+
+  function closePlayerOperationModal() {
+    document.getElementById('playerOperationModal').style.display = 'none';
+    document.getElementById('modalAmount').value = '';
+    document.getElementById('modalAmountQuickSelect').value = '';
+    currentPlayerForModal = null;
+  }
+
+  function addPlayerOperation() {
+    if (!currentPlayerForModal || !currentSessionId) return;
+    
+    const type = document.getElementById('modalOperationType').value;
+    const amountRaw = document.getElementById('modalAmount').value;
+    const quickVal = document.getElementById('modalAmountQuickSelect').value;
+    let amount;
+    if (amountRaw !== '') {
+      amount = parseFloat(amountRaw);
+    } else if (quickVal !== '') {
+      amount = parseFloat(quickVal);
+    } else {
+      alert('Введите сумму или выберите из списка');
+      return;
+    }
+
+    if (isNaN(amount)) {
+      alert('Введите корректную сумму');
+      return;
+    }
+
+    if (type === 'buy_in' && amount <= 0) {
+      alert('Бай-ин должен быть положительным');
+      return;
+    }
+    if (type === 'cash_out' && amount < 0) {
+      alert('Кэш-аут не может быть отрицательным');
+      return;
+    }
+
+    const session = sessions[currentSessionId];
+    if (type === 'cash_out') {
+      const totalBuyIn = session.transactions
+        .filter(t => t.player === currentPlayerForModal && t.type === 'buy_in')
+        .reduce((sum, t) => sum + t.amount, 0);
+      if (totalBuyIn <= 0) {
+        alert(`Нельзя сделать кэш-аут для ${currentPlayerForModal} без бай-ина`);
+        return;
+      }
+    }
+
+    session.transactions.push({
+      player: currentPlayerForModal,
+      type,
+      amount,
+      timestamp: new Date().toISOString()
+    });
+
+    saveToStorage();
+    sortByResult = false;
+    renderTransactions();
+    renderSummary();
+    closePlayerOperationModal();
+  }
+
+  // === ИНИЦИАЛИЗАЦИЯ ===
+  function init() {
+    loadFromStorage();
+    const now = new Date();
+    document.getElementById('newSessionName').value = `Сессия от ${now.toLocaleDateString('ru-RU')}`;
+    updateUI();
+    updateAmountQuickSelect();
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('operationType').addEventListener('change', updateAmountQuickSelect);
+
+    document.getElementById('playerInputContainer').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !isListMode) {
+        e.preventDefault();
+        addPlayersFromCurrentInput();
+      }
+    });
+
+    document.getElementById('amountInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        addTransaction();
+      }
+    });
+
+    init();
+  });
+</script>
+
+</body>
+</html>

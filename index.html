@@ -2,10 +2,11 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>Покер — Учёт сессий</title>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
   <style>
+    * { box-sizing: border-box; }
     body {
       font-family: Arial, sans-serif;
       max-width: 960px;
@@ -17,6 +18,8 @@
       text-align: center;
       color: #2c3e50;
     }
+    h1 { font-size: 24px; }
+    h2 { font-size: 20px; }
     .container {
       background: white;
       padding: 20px;
@@ -24,7 +27,7 @@
       box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
     button {
-      padding: 8px 12px;
+      padding: 10px 14px;
       margin: 5px 2px;
       cursor: pointer;
       background-color: #4CAF50;
@@ -37,6 +40,12 @@
     button:disabled {
       background-color: #cccccc;
       cursor: not-allowed;
+    }
+    input[type="text"] {
+      padding: 10px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
     }
     .error {
       color: #d32f2f;
@@ -54,25 +63,27 @@
       border-radius: 4px;
       display: none;
     }
+    .result-box ul { padding-left: 20px; margin: 0; }
+    .result-box li { margin: 5px 0; }
     .positive { color: green; font-weight: bold; }
     .negative { color: red; font-weight: bold; }
     .zero { color: #555; }
     .session-controls {
       text-align: center;
       margin: 15px 0;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
     }
-    .danger-btn {
-      background-color: #f44336;
+    .session-controls input[type="text"] {
+      flex: 1 1 200px;
+      min-width: 150px;
     }
-    .danger-btn:hover {
-      background-color: #d32f2f;
-    }
-    .online-btn {
-      background-color: #2196F3;
-    }
-    .online-btn:hover {
-      background-color: #0b7dda;
-    }
+    .danger-btn { background-color: #f44336; }
+    .danger-btn:hover { background-color: #d32f2f; }
+    .online-btn { background-color: #2196F3; }
+    .online-btn:hover { background-color: #0b7dda; }
     .confirm-input {
       padding: 6px;
       margin: 5px;
@@ -95,20 +106,24 @@
       height: 100%;
       background: rgba(0,0,0,0.5);
       z-index: 100;
+      overflow-y: auto;
     }
     .modal-content {
       background: white;
-      margin: 100px auto;
+      margin: 40px auto;
       padding: 20px;
       max-width: 400px;
       border-radius: 8px;
+      width: calc(100% - 30px);
     }
+    .modal-content h3 { margin-top: 0; }
     input[type="number"], select {
       width: 100%;
-      padding: 8px;
+      padding: 10px;
       margin: 5px 0;
       border: 1px solid #ccc;
       border-radius: 4px;
+      font-size: 16px; /* предотвращает авто-зум на iOS */
     }
 
     /* === ПОКЕРНЫЙ СТОЛ === */
@@ -161,42 +176,127 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       width: 65px;
+      font-size: 11px;
     }
+    .seat-balance { font-size: 12px; margin-top: 2px; }
     .seat-balance.positive { color: #4CAF50; }
     .seat-balance.negative { color: #f44336; }
     .seat-balance.zero { color: #aaa; }
 
-    /* Вертикальный режим для мобильных */
+    /* Вертикальный режим для мобильных - СПИСОК ВМЕСТО ОВАЛА */
     @media (max-width: 767px) {
+      body { padding: 0 10px; margin: 10px auto; }
+      .container { padding: 15px 10px; }
+      h1 { font-size: 20px; }
+      h2 { font-size: 18px; }
+
       .poker-table-container {
         flex-direction: column;
         align-items: center;
+        margin: 15px 0;
       }
       .poker-table {
-        width: 90vw;
-        height: 45vw;
-        margin-bottom: 30px;
+        width: 100%;
+        height: auto;
+        background: transparent;
+        border-radius: 0;
+        box-shadow: none;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
       }
+
       .seat {
         position: relative;
-        margin: 10px 0;
-        border-radius: 12px;
-        width: 200px;
+        left: auto !important;
+        top: auto !important;
+        width: 100%;
         height: auto;
-        padding: 12px;
+        border-radius: 8px;
+        padding: 10px 15px;
         flex-direction: row;
-        justify-content: space-between;
-        border-radius: 12px;
+        justify-content: flex-start;
+        gap: 15px;
+        background: #333;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
       }
       .seat.empty {
-        display: flex;
+        background: #e0e0e0;
+        color: #666;
         justify-content: center;
-        align-items: center;
-        font-size: 24px;
+        font-size: 16px;
+        min-height: 50px;
       }
+      .seat.occupied { background: #2c3e50; }
       .seat-name {
         width: auto;
         white-space: normal;
+        flex: 1;
+        text-align: left;
+        font-size: 14px;
+        min-width: 0;
+      }
+      .seat-balance {
+        font-size: 16px;
+        font-weight: bold;
+        margin-top: 0;
+        white-space: nowrap;
+      }
+
+      .session-controls {
+        flex-direction: column;
+      }
+      .session-controls input[type="text"],
+      .session-controls button {
+        width: 100%;
+        margin: 3px 0;
+      }
+
+      .collapsible-header {
+        padding: 12px 10px;
+        font-size: 16px;
+      }
+
+      .table-scroll-wrapper {
+        max-height: 300px;
+      }
+      .table-scroll-wrapper table {
+        min-width: 500px;
+        font-size: 13px;
+      }
+      .table-scroll-wrapper th,
+      .table-scroll-wrapper td {
+        padding: 6px 4px;
+      }
+
+      .modal-content {
+        margin: 20px auto;
+        padding: 15px;
+      }
+
+      /* Индикатор скролла для таблиц */
+      .table-scroll-container {
+        position: relative;
+      }
+      .table-scroll-container::after {
+        content: "← листайте →";
+        position: absolute;
+        right: 10px;
+        top: -5px;
+        font-size: 11px;
+        color: #999;
+        background: white;
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+
+      /* Архив: более компактный вид */
+      .archive-btn {
+        padding: 6px 10px;
+        font-size: 11px;
+        display: block;
+        width: 100%;
+        margin: 2px 0;
       }
     }
 
@@ -211,9 +311,10 @@
       gap: 8px;
       user-select: none;
       background: #f9f9f9;
-      padding: 10px;
+      padding: 12px 15px;
       border-radius: 6px;
       border: 1px solid #eee;
+      margin: 0;
     }
     .toggle-icon {
       font-size: 18px;
@@ -221,8 +322,8 @@
     }
     .collapsible-content {
       overflow: hidden;
-      max-height: 1000px;
-      transition: max-height 0.3s ease, opacity 0.3s ease;
+      max-height: 2000px;
+      transition: max-height 0.4s ease, opacity 0.3s ease;
       opacity: 1;
       margin-top: 10px;
     }
@@ -232,11 +333,12 @@
       margin-top: 0;
     }
 
-    /* === АДАПТАЦИЯ ТАБЛИЦ ДЛЯ МОБИЛЬНЫХ === */
+    /* === АДАПТАЦИЯ ТАБЛИЦ === */
     .table-scroll-container {
       overflow-x: auto;
       width: 100%;
       margin: 15px 0;
+      -webkit-overflow-scrolling: touch;
     }
     .table-scroll-wrapper {
       max-height: 350px;
@@ -247,6 +349,18 @@
     .table-scroll-wrapper table {
       min-width: 600px;
       width: 100%;
+      border-collapse: collapse;
+    }
+    .table-scroll-wrapper th,
+    .table-scroll-wrapper td {
+      border-bottom: 1px solid #eee;
+      padding: 8px;
+      text-align: left;
+    }
+    .table-scroll-wrapper th {
+      background: #f5f5f5;
+      position: sticky;
+      top: 0;
     }
 
     /* === КНОПКИ В АРХИВЕ === */
@@ -264,10 +378,44 @@
     .archive-btn.delete { background-color: #f44336; }
     .archive-btn:hover { opacity: 0.9; }
 
+    /* === TOOLTIP === */
+    .tooltip-container {
+      position: relative;
+      display: inline-block;
+    }
+    .tooltip-text {
+      visibility: hidden;
+      width: 220px;
+      background-color: #555;
+      color: #fff;
+      text-align: center;
+      padding: 8px;
+      border-radius: 6px;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      left: 50%;
+      margin-left: -110px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      font-size: 12px;
+    }
+    .tooltip-container:hover .tooltip-text {
+      visibility: visible;
+      opacity: 1;
+    }
+
     /* === ВЫРАВНИВАНИЕ КНОПОК В СТОЛБЦЕ ДЕЙСТВИЕ === */
     #summaryTable td:nth-child(5),
     #summaryTable th:nth-child(5) {
       text-align: left;
+    }
+
+    /* Скрытие tooltip на мобильных (используем title атрибут) */
+    @media (max-width: 767px) {
+      .tooltip-text { display: none; }
+      .tooltip-container { display: block; margin: 10px 0; }
+      .tooltip-container button { width: 100%; }
     }
   </style>
 </head>
@@ -281,7 +429,7 @@
     <input type="text" id="newSessionName" placeholder="Название сессии" value="" />
     <button onclick="createNewSession()">+ Новая live-сессия</button>
     <button onclick="showResetDialog()" class="danger-btn" id="resetBtn" disabled>Сбросить сессию</button>
-    <a href="https://oleg-sedov.github.io/settlements/" target="_blank">
+    <a href="https://oleg-sedov.github.io/settlements/" target="_blank" style="text-decoration:none;">
       <button class="online-btn">Рассчитать результаты онлайн-сессии</button>
     </a>
   </div>
@@ -301,9 +449,7 @@
     <!-- Покерный стол -->
     <h2>Покерный стол</h2>
     <div class="poker-table-container">
-      <div class="poker-table" id="pokerTable">
-        <!-- Боксы будут добавлены через JS -->
-      </div>
+      <div class="poker-table" id="pokerTable"></div>
     </div>
 
     <!-- Сворачиваемый блок транзакций -->
@@ -364,6 +510,7 @@
         onclick="confirmCalculateSettlements()"
         id="calcBtn"
         disabled
+        title="Расчёт невозможен: не все закончили игру или баланс не сходится"
       >Рассчитать взаиморасчёты</button>
       <div class="tooltip-text">Расчёт невозможен: не все закончили игру или баланс не сходится</div>
     </div>
@@ -454,6 +601,7 @@
   let currentPlayerForAction = null;
   let currentOperationType = null;
   let sortByResult = false;
+  let currentOperationPlayer = null;
 
   const PREDEFINED_PLAYERS = [
     "Андрей Короб", "Артем А", "Влад", "ГГВП", "Даниил", "Игорян", "Инесса",
@@ -599,25 +747,22 @@
 
       if (!isMobileView()) {
         const positions = [
-          { x: 0.2, y: 0.15 }, // 0
-          { x: 0.4, y: 0.1 },  // 1
-          { x: 0.6, y: 0.1 },  // 2
-          { x: 0.8, y: 0.15 }, // 3
-          { x: 0.2, y: 0.85 }, // 4
-          { x: 0.4, y: 0.9 },  // 5
-          { x: 0.6, y: 0.9 },  // 6
-          { x: 0.8, y: 0.85 }, // 7
-          { x: 0.05, y: 0.5 }, // 8 (лево)
-          { x: 0.95, y: 0.5 }  // 9 (право)
+          { x: 0.2, y: 0.15 }, { x: 0.4, y: 0.1 },
+          { x: 0.6, y: 0.1 },  { x: 0.8, y: 0.15 },
+          { x: 0.2, y: 0.85 }, { x: 0.4, y: 0.9 },
+          { x: 0.6, y: 0.9 },  { x: 0.8, y: 0.85 },
+          { x: 0.05, y: 0.5 }, { x: 0.95, y: 0.5 }
         ];
 
-        const rect = table.getBoundingClientRect();
-        const pos = positions[i];
-        const x = pos.x * rect.width - 35;
-        const y = pos.y * rect.height - 35;
-
-        seat.style.left = `${x}px`;
-        seat.style.top = `${y}px`;
+        // Используем offsetWidth/Height для корректных расчётов после рендера
+        requestAnimationFrame(() => {
+          const rect = table.getBoundingClientRect();
+          const pos = positions[i];
+          const x = pos.x * rect.width - 35;
+          const y = pos.y * rect.height - 35;
+          seat.style.left = `${x}px`;
+          seat.style.top = `${y}px`;
+        });
       }
     }
   }
@@ -676,6 +821,14 @@
   function closeOperationModal() {
     document.getElementById('operationModal').style.display = 'none';
     currentOperationType = null;
+  }
+
+  // === ИСПРАВЛЕННЫЙ БАГ: ДОБАВЛЕНА ОТСУТСТВУЮЩАЯ ФУНКЦИЯ ===
+  function openPlayerOperationModal(playerName) {
+    currentOperationPlayer = playerName;
+    document.getElementById('actionPlayerName').textContent = playerName;
+    currentPlayerForAction = playerName;
+    document.getElementById('playerActionModal').style.display = 'block';
   }
 
   function confirmAddPlayer() {
@@ -1062,7 +1215,6 @@
     const session = sessions[currentSessionId];
     const isCompleted = session.status === 'completed';
 
-    // ← АВТОМАТИЧЕСКИ УДАЛЯЕМ ИГРОКОВ БЕЗ ОПЕРАЦИЙ
     const playersWithTransactions = new Set(session.transactions.map(t => t.player));
     session.players = session.players.filter(p => playersWithTransactions.has(p));
     saveToStorage();
@@ -1117,7 +1269,6 @@
         opBtn.textContent = '+ операция';
         opBtn.onclick = () => openPlayerOperationModal(p.name);
         actionCell.appendChild(opBtn);
-        // ← КНОПКА "УДАЛИТЬ" УБРАНА
       } else {
         actionCell.textContent = '—';
       }
@@ -1149,20 +1300,14 @@
     document.getElementById('exportBtn').disabled = !hasSession;
 
     if (hasSession) {
-      if (!isCompleted) {
-        renderPokerTable();
-        renderTransactions();
-        renderSummary();
-        updateAmountQuickSelect('buyInQuickSelect');
-        updateAmountQuickSelect('operationQuickSelect');
-      } else {
-        renderPokerTable();
-        renderTransactions();
-        renderSummary();
-        document.getElementById('resultBox').style.display = 'none';
-        if (sessions[currentSessionId].settlements) {
-          showSavedSettlements(sessions[currentSessionId].settlements);
-        }
+      renderPokerTable();
+      renderTransactions();
+      renderSummary();
+      updateAmountQuickSelect('buyInQuickSelect');
+      updateAmountQuickSelect('operationQuickSelect');
+
+      if (isCompleted && sessions[currentSessionId].settlements) {
+        showSavedSettlements(sessions[currentSessionId].settlements);
       }
     } else {
       document.getElementById('resultBox').style.display = 'none';
@@ -1212,53 +1357,4 @@
       } else if (s.status === 'completed') {
         const viewBtn = document.createElement('button');
         viewBtn.className = 'archive-btn view';
-        viewBtn.textContent = 'Просмотреть';
-        viewBtn.onclick = () => switchSession(id);
-        actions.appendChild(viewBtn);
-
-        const delBtn = document.createElement('button');
-        delBtn.className = 'archive-btn delete';
-        delBtn.textContent = 'Удалить';
-        delBtn.onclick = () => deleteSession(id);
-        actions.appendChild(delBtn);
-      } else {
-        const openBtn = document.createElement('button');
-        openBtn.className = 'archive-btn open';
-        openBtn.textContent = 'Открыть';
-        openBtn.onclick = () => switchSession(id);
-        actions.appendChild(openBtn);
-
-        const delBtn = document.createElement('button');
-        delBtn.className = 'archive-btn delete';
-        delBtn.textContent = 'Удалить';
-        delBtn.onclick = () => deleteSession(id);
-        actions.appendChild(delBtn);
-      }
-    });
-  }
-
-  function init() {
-    loadFromStorage();
-    const now = new Date();
-    document.getElementById('newSessionName').value = `Сессия от ${now.toLocaleDateString('ru-RU')}`;
-    if (currentSessionId) {
-      initializeSeatsFromSession();
-    }
-    updateUI();
-    updateAmountQuickSelect('buyInQuickSelect');
-    updateAmountQuickSelect('operationQuickSelect');
-  }
-
-  window.addEventListener('resize', () => {
-    if (currentSessionId) {
-      renderPokerTable();
-    }
-  });
-
-  document.addEventListener('DOMContentLoaded', () => {
-    init();
-  });
-</script>
-
-</body>
-</html>
+        viewBtn.textContent = 'Прос

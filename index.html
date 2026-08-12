@@ -1357,4 +1357,57 @@
       } else if (s.status === 'completed') {
         const viewBtn = document.createElement('button');
         viewBtn.className = 'archive-btn view';
-        viewBtn.textContent = 'Прос
+        viewBtn.textContent = 'Просмотреть';
+        viewBtn.onclick = () => switchSession(id);
+        actions.appendChild(viewBtn);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'archive-btn delete';
+        delBtn.textContent = 'Удалить';
+        delBtn.onclick = () => deleteSession(id);
+        actions.appendChild(delBtn);
+      } else {
+        const openBtn = document.createElement('button');
+        openBtn.className = 'archive-btn open';
+        openBtn.textContent = 'Открыть';
+        openBtn.onclick = () => switchSession(id);
+        actions.appendChild(openBtn);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'archive-btn delete';
+        delBtn.textContent = 'Удалить';
+        delBtn.onclick = () => deleteSession(id);
+        actions.appendChild(delBtn);
+      }
+    });
+  }
+
+  function init() {
+    loadFromStorage();
+    const now = new Date();
+    document.getElementById('newSessionName').value = `Сессия от ${now.toLocaleDateString('ru-RU')}`;
+    if (currentSessionId) {
+      initializeSeatsFromSession();
+    }
+    updateUI();
+    updateAmountQuickSelect('buyInQuickSelect');
+    updateAmountQuickSelect('operationQuickSelect');
+  }
+
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (currentSessionId) {
+        renderPokerTable();
+      }
+    }, 150);
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    init();
+  });
+</script>
+
+</body>
+</html>

@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Покер — Учёт сессий</title>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
   <style>
@@ -76,10 +76,6 @@
       justify-content: center;
       gap: 8px;
     }
-    .session-controls input[type="text"] {
-      flex: 1 1 200px;
-      min-width: 150px;
-    }
     .danger-btn { background-color: #f44336; }
     .danger-btn:hover { background-color: #d32f2f; }
     .online-btn { background-color: #2196F3; }
@@ -123,7 +119,7 @@
       margin: 5px 0;
       border: 1px solid #ccc;
       border-radius: 4px;
-      font-size: 16px; /* предотвращает авто-зум на iOS */
+      font-size: 16px;
     }
 
     /* === ПОКЕРНЫЙ СТОЛ === */
@@ -183,7 +179,7 @@
     .seat-balance.negative { color: #f44336; }
     .seat-balance.zero { color: #aaa; }
 
-    /* Вертикальный режим для мобильных - СПИСОК ВМЕСТО ОВАЛА */
+    /* === МОБИЛЬНАЯ ВЕРСИЯ === */
     @media (max-width: 767px) {
       body { padding: 0 10px; margin: 10px auto; }
       .container { padding: 15px 10px; }
@@ -246,7 +242,6 @@
       .session-controls {
         flex-direction: column;
       }
-      .session-controls input[type="text"],
       .session-controls button {
         width: 100%;
         margin: 3px 0;
@@ -274,7 +269,6 @@
         padding: 15px;
       }
 
-      /* Индикатор скролла для таблиц */
       .table-scroll-container {
         position: relative;
       }
@@ -290,7 +284,6 @@
         border-radius: 4px;
       }
 
-      /* Архив: более компактный вид */
       .archive-btn {
         padding: 6px 10px;
         font-size: 11px;
@@ -298,9 +291,13 @@
         width: 100%;
         margin: 2px 0;
       }
+
+      .tooltip-text { display: none; }
+      .tooltip-container { display: block; margin: 10px 0; }
+      .tooltip-container button { width: 100%; }
     }
 
-    /* === СТИЛИ ДЛЯ СВОРАЧИВАЕМЫХ БЛОКОВ === */
+    /* === СВОРАЧИВАЕМЫЕ БЛОКИ === */
     .collapsible-section {
       margin: 20px 0;
     }
@@ -333,7 +330,7 @@
       margin-top: 0;
     }
 
-    /* === АДАПТАЦИЯ ТАБЛИЦ === */
+    /* === ТАБЛИЦЫ === */
     .table-scroll-container {
       overflow-x: auto;
       width: 100%;
@@ -410,13 +407,6 @@
     #summaryTable th:nth-child(5) {
       text-align: left;
     }
-
-    /* Скрытие tooltip на мобильных (используем title атрибут) */
-    @media (max-width: 767px) {
-      .tooltip-text { display: none; }
-      .tooltip-container { display: block; margin: 10px 0; }
-      .tooltip-container button { width: 100%; }
-    }
   </style>
 </head>
 <body>
@@ -426,7 +416,6 @@
 
   <!-- Управление сессиями -->
   <div class="session-controls">
-    <input type="text" id="newSessionName" placeholder="Название сессии" value="" />
     <button onclick="createNewSession()">+ Новая live-сессия</button>
     <button onclick="showResetDialog()" class="danger-btn" id="resetBtn" disabled>Сбросить сессию</button>
     <a href="https://oleg-sedov.github.io/settlements/" target="_blank" style="text-decoration:none;">
@@ -601,7 +590,6 @@
   let currentPlayerForAction = null;
   let currentOperationType = null;
   let sortByResult = false;
-  let currentOperationPlayer = null;
 
   const PREDEFINED_PLAYERS = [
     "Андрей Короб", "Артем А", "Влад", "ГГВП", "Даниил", "Игорян", "Инесса",
@@ -650,15 +638,37 @@
     }
   }
 
-  function createNewSession() {
-    const nameInput = document.getElementById('newSessionName');
-    let name = nameInput.value.trim();
-    if (!name) {
-      const now = new Date();
-      name = `Сессия от ${now.toLocaleDateString('ru-RU')}`;
-    }
+  // === ГЕНЕРАЦИЯ ИМЕНИ СЕССИИ ===
+  function generateSessionName() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
 
+    let todaysCount = 0;
+    Object.values(sessions).forEach(s => {
+      const d = new Date(s.createdAt);
+      if (d >= today && d < tomorrow) {
+        todaysCount++;
+      }
+    });
+
+    const weekday = today.toLocaleDateString('ru-RU', { weekday: 'long' });
+    const weekdayCapitalized = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+
+    const dateStr = today.toLocaleDateString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit'
+    });
+
+    return `${weekdayCapitalized}, ${dateStr}, #${todaysCount + 1}`;
+  }
+
+  function createNewSession() {
+    const name = generateSessionName();
     const id = 'sess_' + Date.now();
+    
     sessions[id] = {
       id,
       name,
@@ -671,9 +681,6 @@
     seats = Array(10).fill(null);
     saveToStorage();
     updateUI();
-
-    const nextDate = new Date();
-    nameInput.value = `Сессия от ${nextDate.toLocaleDateString('ru-RU')}`;
   }
 
   function switchSession(id) {
@@ -754,7 +761,6 @@
           { x: 0.05, y: 0.5 }, { x: 0.95, y: 0.5 }
         ];
 
-        // Используем offsetWidth/Height для корректных расчётов после рендера
         requestAnimationFrame(() => {
           const rect = table.getBoundingClientRect();
           const pos = positions[i];
@@ -823,11 +829,9 @@
     currentOperationType = null;
   }
 
-  // === ИСПРАВЛЕННЫЙ БАГ: ДОБАВЛЕНА ОТСУТСТВУЮЩАЯ ФУНКЦИЯ ===
   function openPlayerOperationModal(playerName) {
-    currentOperationPlayer = playerName;
-    document.getElementById('actionPlayerName').textContent = playerName;
     currentPlayerForAction = playerName;
+    document.getElementById('actionPlayerName').textContent = playerName;
     document.getElementById('playerActionModal').style.display = 'block';
   }
 
@@ -1384,8 +1388,6 @@
 
   function init() {
     loadFromStorage();
-    const now = new Date();
-    document.getElementById('newSessionName').value = `Сессия от ${now.toLocaleDateString('ru-RU')}`;
     if (currentSessionId) {
       initializeSeatsFromSession();
     }

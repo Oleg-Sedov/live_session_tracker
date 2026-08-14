@@ -122,7 +122,10 @@
       font-size: 16px;
     }
 
-    /* === ПОКЕРНЫЙ СТОЛ === */
+    /* ============================================================ */
+    /* === ПОКЕРНЫЙ СТОЛ — ОТКЛЮЧЁН (закомментировано) === */
+    /* ============================================================ */
+    /*
     .poker-table-container {
       display: flex;
       justify-content: center;
@@ -178,6 +181,45 @@
     .seat-balance.positive { color: #4CAF50; }
     .seat-balance.negative { color: #f44336; }
     .seat-balance.zero { color: #aaa; }
+    */
+    /* === КОНЕЦ БЛОКА ПОКЕРНОГО СТОЛА === */
+
+    /* === КНОПКА "+" ДЛЯ ДОБАВЛЕНИЯ ИГРОКА === */
+    .add-player-btn {
+      margin-left: auto;
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      font-size: 22px;
+      line-height: 1;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #4CAF50;
+      flex-shrink: 0;
+    }
+    .add-player-btn:hover {
+      background-color: #45a049;
+      transform: scale(1.1);
+    }
+
+    /* === АНИМАЦИЯ ПРИ ТАПЕ НА СТРОКУ === */
+    @keyframes rowTapFlash {
+      0%   { background-color: #c8e6c9; }
+      40%  { background-color: #a5d6a7; }
+      100% { background-color: transparent; }
+    }
+    #summaryTable tbody tr.tap-highlight {
+      animation: rowTapFlash 0.6s ease-out;
+    }
+    #summaryTable tbody tr.clickable-row {
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    #summaryTable tbody tr.clickable-row:active {
+      background-color: #e8f5e9;
+    }
 
     /* === МОБИЛЬНАЯ ВЕРСИЯ === */
     @media (max-width: 767px) {
@@ -186,6 +228,10 @@
       h1 { font-size: 20px; }
       h2 { font-size: 18px; }
 
+      /* ============================================================ */
+      /* === ПОКЕРНЫЙ СТОЛ — МОБИЛЬНЫЕ СТИЛИ ОТКЛЮЧЕНЫ === */
+      /* ============================================================ */
+      /*
       .poker-table-container {
         flex-direction: column;
         align-items: center;
@@ -238,6 +284,8 @@
         margin-top: 0;
         white-space: nowrap;
       }
+      */
+      /* === КОНЕЦ МОБИЛЬНЫХ СТИЛЕЙ ПОКЕРНОГО СТОЛА === */
 
       .session-controls {
         flex-direction: column;
@@ -297,7 +345,7 @@
       .tooltip-container button { width: 100%; }
 
       /* ============================================ */
-      /* === Доработка таблицы «Список игроков» === */
+      /* === Таблица «Список игроков» — мобильные === */
       /* ============================================ */
 
       /* Высота окна увеличена на 40%: 300px → 420px */
@@ -329,18 +377,23 @@
       #summaryTable th:nth-child(4),
       #summaryTable td:nth-child(4) { width: 22%; }
 
-      /* Уменьшенный шрифт и отступы */
-      #summaryTable th,
-      #summaryTable td {
+      /* Заголовки: мелкий шрифт */
+      #summaryTable th {
         padding: 8px 3px;
-        font-size: 16px;
+        font-size: 11px;
+        white-space: normal;
+        line-height: 1.2;
         overflow: hidden;
         text-overflow: ellipsis;
       }
-      #summaryTable th {
+
+      /* Значения: шрифт 16px */
+      #summaryTable td {
+        padding: 10px 3px;
         font-size: 16px;
-        white-space: normal;
-        line-height: 1.2;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       /* Убираем подсказку скролла для этой таблицы */
@@ -348,14 +401,7 @@
         content: none;
       }
 
-      /* Кликабельные строки (замена кнопки «+ операция») */
-      #summaryTable tbody tr.clickable-row {
-        cursor: pointer;
-      }
-      #summaryTable tbody tr.clickable-row:active {
-        background: #e8f5e9;
-      }
-      /* Убираем скролл по горизонтали для summary */
+      /* Убираем горизонтальный скролл для summary */
       #summaryContent .table-scroll-container {
         overflow-x: hidden;
       }
@@ -499,11 +545,16 @@
   <!-- Основной контент -->
   <div id="mainContent" style="display:none;">
 
-    <!-- Покерный стол -->
+    <!-- ============================================================ -->
+    <!-- === ПОКЕРНЫЙ СТОЛ — ОТКЛЮЧЁН (закомментировано) === -->
+    <!-- ============================================================ -->
+    <!--
     <h2>Покерный стол</h2>
     <div class="poker-table-container">
       <div class="poker-table" id="pokerTable"></div>
     </div>
+    -->
+    <!-- === КОНЕЦ БЛОКА ПОКЕРНОГО СТОЛА === -->
 
     <!-- Сворачиваемый блок транзакций -->
     <div class="collapsible-section">
@@ -534,6 +585,14 @@
     <div class="collapsible-section">
       <h2 class="collapsible-header" onclick="toggleSection('summary')">
         <span class="toggle-icon">+</span> Список игроков
+        <!-- Кнопка "+" для добавления игрока -->
+        <button 
+          id="addPlayerBtn" 
+          class="add-player-btn" 
+          onclick="event.stopPropagation(); openAddPlayerModal()"
+          style="display:none;"
+          title="Добавить игрока"
+        >+</button>
       </h2>
       <div id="summaryContent" class="collapsible-content collapsed">
         <div class="table-scroll-container">
@@ -791,6 +850,10 @@
     });
   }
 
+  // ============================================================
+  // === ПОКЕРНЫЙ СТОЛ — ФУНКЦИИ ОТКЛЮЧЕНЫ (закомментировано) ===
+  // ============================================================
+  /*
   function renderPokerTable() {
     const table = document.getElementById('pokerTable');
     table.innerHTML = '';
@@ -837,12 +900,6 @@
     }
   }
 
-  function getBalanceClass(balance) {
-    if (balance > 0.01) return 'positive';
-    if (balance < -0.01) return 'negative';
-    return 'zero';
-  }
-
   function onSeatClick(seatIndex) {
     if (!currentSessionId) return;
     const session = sessions[currentSessionId];
@@ -856,6 +913,14 @@
       populatePlayerSelect();
       document.getElementById('addPlayerModal').style.display = 'block';
     }
+  }
+  */
+  // === КОНЕЦ ФУНКЦИЙ ПОКЕРНОГО СТОЛА ===
+
+  function getBalanceClass(balance) {
+    if (balance > 0.01) return 'positive';
+    if (balance < -0.01) return 'negative';
+    return 'zero';
   }
 
   function populatePlayerSelect() {
@@ -873,6 +938,15 @@
         select.appendChild(opt);
       }
     });
+  }
+
+  // === НОВАЯ ФУНКЦИЯ: Открытие модального окна добавления игрока ===
+  function openAddPlayerModal() {
+    if (!currentSessionId) return;
+    const session = sessions[currentSessionId];
+    if (session.status === 'completed') return;
+    populatePlayerSelect();
+    document.getElementById('addPlayerModal').style.display = 'block';
   }
 
   function closeAddPlayerModal() {
@@ -942,7 +1016,7 @@
 
     seats[seatIndex] = { playerName, balance: amount };
     saveToStorage();
-    renderPokerTable();
+    // renderPokerTable(); // ← ПОКЕРНЫЙ СТОЛ ОТКЛЮЧЁН
     renderTransactions();
     renderSummary();
     closeAddPlayerModal();
@@ -1023,7 +1097,7 @@
     }
 
     saveToStorage();
-    renderPokerTable();
+    // renderPokerTable(); // ← ПОКЕРНЫЙ СТОЛ ОТКЛЮЧЁН
     renderTransactions();
     renderSummary();
     closeOperationModal();
@@ -1064,7 +1138,7 @@
           renderTransactions();
           renderSummary();
           initializeSeatsFromSession();
-          renderPokerTable();
+          // renderPokerTable(); // ← ПОКЕРНЫЙ СТОЛ ОТКЛЮЧЁН
         };
         cell.appendChild(btn);
       } else {
@@ -1261,7 +1335,7 @@
       saveToStorage();
       renderTransactions();
       renderSummary();
-      renderPokerTable();
+      // renderPokerTable(); // ← ПОКЕРНЫЙ СТОЛ ОТКЛЮЧЁН
       hideResetDialog();
     }
   }
@@ -1333,10 +1407,15 @@
       actionCell.style.textAlign = 'left';
 
       if (!isCompleted) {
-        // === Тап по строке на мобильных открывает операции ===
+        // === Анимация подсветки строки при тапе на мобильных ===
         row.classList.add('clickable-row');
         row.onclick = () => {
           if (isMobileView()) {
+            // Перезапуск анимации
+            row.classList.remove('tap-highlight');
+            void row.offsetWidth; // принудительный reflow
+            row.classList.add('tap-highlight');
+            setTimeout(() => row.classList.remove('tap-highlight'), 600);
             openPlayerOperationModal(p.name);
           }
         };
@@ -1379,8 +1458,14 @@
 
     document.getElementById('exportBtn').disabled = !hasSession;
 
+    // === Показываем/скрываем кнопку "+" добавления игрока ===
+    const addPlayerBtn = document.getElementById('addPlayerBtn');
+    if (addPlayerBtn) {
+      addPlayerBtn.style.display = (hasSession && !isCompleted) ? 'flex' : 'none';
+    }
+
     if (hasSession) {
-      renderPokerTable();
+      // renderPokerTable(); // ← ПОКЕРНЫЙ СТОЛ ОТКЛЮЧЁН
       renderTransactions();
       renderSummary();
       updateAmountQuickSelect('buyInQuickSelect');
@@ -1477,7 +1562,7 @@
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
       if (currentSessionId) {
-        renderPokerTable();
+        // renderPokerTable(); // ← ПОКЕРНЫЙ СТОЛ ОТКЛЮЧЁН
       }
     }, 150);
   });

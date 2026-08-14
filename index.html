@@ -295,6 +295,70 @@
       .tooltip-text { display: none; }
       .tooltip-container { display: block; margin: 10px 0; }
       .tooltip-container button { width: 100%; }
+
+      /* ============================================ */
+      /* === Доработка таблицы «Список игроков» === */
+      /* ============================================ */
+
+      /* Высота окна увеличена на 40%: 300px → 420px */
+      #summaryContent .table-scroll-wrapper {
+        max-height: 420px;
+      }
+
+      /* Таблица подстраивается под ширину экрана */
+      #summaryContent .table-scroll-wrapper table,
+      #summaryTable {
+        min-width: 100%;
+        width: 100%;
+        table-layout: fixed;
+      }
+
+      /* Скрываем столбец «Действие» */
+      #summaryTable th:nth-child(5),
+      #summaryTable td:nth-child(5) {
+        display: none;
+      }
+
+      /* Ширины столбцов в процентах */
+      #summaryTable th:nth-child(1),
+      #summaryTable td:nth-child(1) { width: 34%; }
+      #summaryTable th:nth-child(2),
+      #summaryTable td:nth-child(2) { width: 22%; }
+      #summaryTable th:nth-child(3),
+      #summaryTable td:nth-child(3) { width: 22%; }
+      #summaryTable th:nth-child(4),
+      #summaryTable td:nth-child(4) { width: 22%; }
+
+      /* Уменьшенный шрифт и отступы */
+      #summaryTable th,
+      #summaryTable td {
+        padding: 8px 3px;
+        font-size: 12px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #summaryTable th {
+        font-size: 11px;
+        white-space: normal;
+        line-height: 1.2;
+      }
+
+      /* Убираем подсказку скролла для этой таблицы */
+      #summaryContent .table-scroll-container::after {
+        content: none;
+      }
+
+      /* Кликабельные строки (замена кнопки «+ операция») */
+      #summaryTable tbody tr.clickable-row {
+        cursor: pointer;
+      }
+      #summaryTable tbody tr.clickable-row:active {
+        background: #e8f5e9;
+      }
+      /* Убираем скролл по горизонтали для summary */
+      #summaryContent .table-scroll-container {
+        overflow-x: hidden;
+      }
     }
 
     /* === СВОРАЧИВАЕМЫЕ БЛОКИ === */
@@ -1269,9 +1333,21 @@
       actionCell.style.textAlign = 'left';
 
       if (!isCompleted) {
+        // === Тап по строке на мобильных открывает операции ===
+        row.classList.add('clickable-row');
+        row.onclick = () => {
+          if (isMobileView()) {
+            openPlayerOperationModal(p.name);
+          }
+        };
+
+        // Кнопка для десктопа (на мобильных скрыта через CSS)
         const opBtn = document.createElement('button');
         opBtn.textContent = '+ операция';
-        opBtn.onclick = () => openPlayerOperationModal(p.name);
+        opBtn.onclick = (e) => {
+          e.stopPropagation();
+          openPlayerOperationModal(p.name);
+        };
         actionCell.appendChild(opBtn);
       } else {
         actionCell.textContent = '—';
@@ -1321,95 +1397,4 @@
     renderSessionsTable();
   }
 
-  function showSavedSettlements(saved) {
-    const box = document.getElementById('resultBox');
-    if (!saved.transfers || saved.transfers.length === 0) {
-      box.innerHTML = '';
-      box.style.display = 'none';
-    } else {
-      box.innerHTML = '<ul>' +
-        saved.transfers.map(t => `<li><strong>${t.from}</strong> → <strong>${t.to}</strong>: ${t.amount} ₽</li>`).join('') +
-        '</ul>';
-      box.style.display = 'block';
-    }
-    document.getElementById('exportBtn').disabled = false;
-    window.transfersForExport = saved.transfers;
-  }
-
-  function renderSessionsTable() {
-    const tbody = document.getElementById('sessionsList');
-    const note = document.getElementById('noSessionsNote');
-    tbody.innerHTML = '';
-    const ids = Object.keys(sessions);
-    if (ids.length === 0) {
-      note.style.display = 'block';
-      return;
-    }
-    note.style.display = 'none';
-
-    ids.forEach(id => {
-      const s = sessions[id];
-      const row = tbody.insertRow();
-      row.insertCell(0).textContent = s.name;
-      row.insertCell(1).textContent = new Date(s.createdAt).toLocaleString('ru-RU');
-      row.insertCell(2).textContent = s.players.length;
-      row.insertCell(3).textContent = s.transactions.length;
-      
-      const actions = row.insertCell(4);
-      if (id === currentSessionId) {
-        actions.innerHTML = '<em>Текущая</em>';
-      } else if (s.status === 'completed') {
-        const viewBtn = document.createElement('button');
-        viewBtn.className = 'archive-btn view';
-        viewBtn.textContent = 'Просмотреть';
-        viewBtn.onclick = () => switchSession(id);
-        actions.appendChild(viewBtn);
-
-        const delBtn = document.createElement('button');
-        delBtn.className = 'archive-btn delete';
-        delBtn.textContent = 'Удалить';
-        delBtn.onclick = () => deleteSession(id);
-        actions.appendChild(delBtn);
-      } else {
-        const openBtn = document.createElement('button');
-        openBtn.className = 'archive-btn open';
-        openBtn.textContent = 'Открыть';
-        openBtn.onclick = () => switchSession(id);
-        actions.appendChild(openBtn);
-
-        const delBtn = document.createElement('button');
-        delBtn.className = 'archive-btn delete';
-        delBtn.textContent = 'Удалить';
-        delBtn.onclick = () => deleteSession(id);
-        actions.appendChild(delBtn);
-      }
-    });
-  }
-
-  function init() {
-    loadFromStorage();
-    if (currentSessionId) {
-      initializeSeatsFromSession();
-    }
-    updateUI();
-    updateAmountQuickSelect('buyInQuickSelect');
-    updateAmountQuickSelect('operationQuickSelect');
-  }
-
-  let resizeTimer;
-  window.addEventListener('resize', () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => {
-      if (currentSessionId) {
-        renderPokerTable();
-      }
-    }, 150);
-  });
-
-  document.addEventListener('DOMContentLoaded', () => {
-    init();
-  });
-</script>
-
-</body>
-</html>
+  function showSavedSettlements

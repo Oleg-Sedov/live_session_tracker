@@ -1397,4 +1397,95 @@
     renderSessionsTable();
   }
 
-  function showSavedSettlements
+  function showSavedSettlements(saved) {
+    const box = document.getElementById('resultBox');
+    if (!saved.transfers || saved.transfers.length === 0) {
+      box.innerHTML = '';
+      box.style.display = 'none';
+    } else {
+      box.innerHTML = '<ul>' +
+        saved.transfers.map(t => `<li><strong>${t.from}</strong> → <strong>${t.to}</strong>: ${t.amount} ₽</li>`).join('') +
+        '</ul>';
+      box.style.display = 'block';
+    }
+    document.getElementById('exportBtn').disabled = false;
+    window.transfersForExport = saved.transfers;
+  }
+
+  function renderSessionsTable() {
+    const tbody = document.getElementById('sessionsList');
+    const note = document.getElementById('noSessionsNote');
+    tbody.innerHTML = '';
+    const ids = Object.keys(sessions);
+    if (ids.length === 0) {
+      note.style.display = 'block';
+      return;
+    }
+    note.style.display = 'none';
+
+    ids.forEach(id => {
+      const s = sessions[id];
+      const row = tbody.insertRow();
+      row.insertCell(0).textContent = s.name;
+      row.insertCell(1).textContent = new Date(s.createdAt).toLocaleString('ru-RU');
+      row.insertCell(2).textContent = s.players.length;
+      row.insertCell(3).textContent = s.transactions.length;
+      
+      const actions = row.insertCell(4);
+      if (id === currentSessionId) {
+        actions.innerHTML = '<em>Текущая</em>';
+      } else if (s.status === 'completed') {
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'archive-btn view';
+        viewBtn.textContent = 'Просмотреть';
+        viewBtn.onclick = () => switchSession(id);
+        actions.appendChild(viewBtn);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'archive-btn delete';
+        delBtn.textContent = 'Удалить';
+        delBtn.onclick = () => deleteSession(id);
+        actions.appendChild(delBtn);
+      } else {
+        const openBtn = document.createElement('button');
+        openBtn.className = 'archive-btn open';
+        openBtn.textContent = 'Открыть';
+        openBtn.onclick = () => switchSession(id);
+        actions.appendChild(openBtn);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'archive-btn delete';
+        delBtn.textContent = 'Удалить';
+        delBtn.onclick = () => deleteSession(id);
+        actions.appendChild(delBtn);
+      }
+    });
+  }
+
+  function init() {
+    loadFromStorage();
+    if (currentSessionId) {
+      initializeSeatsFromSession();
+    }
+    updateUI();
+    updateAmountQuickSelect('buyInQuickSelect');
+    updateAmountQuickSelect('operationQuickSelect');
+  }
+
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (currentSessionId) {
+        renderPokerTable();
+      }
+    }, 150);
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    init();
+  });
+</script>
+
+</body>
+</html>
